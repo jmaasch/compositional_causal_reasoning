@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 import string
-from random import shuffle, seed
+from random import shuffle,seed,choices
 from faker.providers.person.en import Provider
 import networkx as nx
 import itertools
@@ -20,6 +20,14 @@ class TaskGenerator:
                  bern: str = "uniform", # "random"
                  p: int = 0.5,
                  plot: bool = True):
+
+        '''
+        label_as:
+          - names: nodes given random human names
+          - letters: node labels are uppercase letters in alphabetical order (by topological sort)
+          - numbers: nodes labels are real numbers from [0..len(nodes)-1] (by topological sort)
+          - nonsense: node labels are random uppercase strings (e.g., DRX, EOIDLZ, etc.)
+        '''
 
         # Generate graphs.
         self.dag = self.get_dag(n_per_bcc = n_per_bcc,
@@ -140,6 +148,10 @@ class TaskGenerator:
             labels = [x for x in string.ascii_uppercase[:len(dag.nodes)]]
         elif label_as == "numbers":
             labels = range(len(dag.nodes))
+        elif label_as == "nonsense":
+            labels = [''.join(choices(string.ascii_uppercase+string.digits, k=4)) for _ in range(len(dag.nodes))]
+        else:
+            raise Exception("label_as must be in {names,letters,numbers,nonsense}.")
         dag = nx.relabel_nodes(dag, dict(zip(dag.nodes,labels)))
         dag = dag.to_directed(as_view = False)
     
@@ -614,61 +626,3 @@ class TaskGenerator:
         return prompt
 
 
-class Utils():
-
-    
-    def get_cct(self,
-                n_cutpoints: int = 1,
-                names: list = None,
-                plot: bool = True) -> nx.classes.graph.Graph:
-
-        '''
-        Generates the commutative cut tree associated with a given number of cutpoints.
-        Optionally, the user can input node names.
-        '''
-    
-        adj_cct = np.triu(np.ones((n_cutpoints+2,n_cutpoints+2)), k = 1)
-        cct = nx.from_numpy_array(adj_cct, create_using = nx.DiGraph)
-        if names is not None:
-            cct = nx.relabel_nodes(cct, dict(zip(cct.nodes,names)))
-        return cct
-
-    
-    def get_total_paths_cct(self, n: int) -> int:
-    
-        '''
-        n = total nodes in CCT
-        '''
-    
-        return 2**(n-2)
-
-    
-    def get_prc_direct(self,
-                       df: pd.DataFrame, 
-                       x: str, 
-                       y: str, 
-                       y_do_x0: str, 
-                       y_do_x1: str) -> dict:
-
-        '''
-        Compute the probabilities of causation directly from observed and interventional data.
-        '''
-    
-        res = dict()
-        df = df.astype("bool")
-        res['PN'] = np.mean(~df[df[x] & df[y]][y_do_x0])
-        res['PS'] = np.mean(df[~df[x] & ~df[y]][y_do_x1])
-        res['PNS'] = np.mean(df[y_do_x1] & ~df[y_do_x0])
-        
-        return res
-
-
-    def get_ate(self,
-                df_do_1: pd.DataFrame, 
-                df_do_0: pd.DataFrame,
-                effect_do_1: str,
-                effect_do_0: str) -> float:
-        
-        return df_do_1[effect_do_1].mean() - df_do_0[effect_do_0].mean()
-    
-            
