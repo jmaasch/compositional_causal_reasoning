@@ -355,8 +355,7 @@ class TaskGenerator:
             return sample_dict, dict(zip(self.exog_names,noise_terms))
     
 
-    def get_context(self, 
-                    n_extra_vars: int = 2) -> str:
+    def get_causal_context(self) -> str:
     
         # Get variable metadata for context prompt.
         self.var_dict = dict()
@@ -404,6 +403,57 @@ class TaskGenerator:
                                   "endog level": level,
                                   "exog var name": u, 
                                   "exog type": exog}
+
+        # Construct prompt.
+        intro = "Chronic disease {} sometimes requires surgical intervention,".format(self.disease)
+        intro += " depending on genetics, patient history, vital signs, and lab results. The patient will experience" 
+        intro += " significant pain (rated greater than or equal to {}/10)".format(self.pain_threshold)
+        intro += " if they carry allele {},".format(self.var_dict.get("pain").get("exog var name"))
+        intro += " a genetic marker for severe {}.".format(self.disease)
+        outro = "Assume that all factors influencing the surgeon are fully described here."
+        strngs = [intro]
+        for var,terms in self.var_dict.items():
+            if var == "pain":
+                continue
+            parents = terms.get("parents")
+            endog_type = terms.get("endog type")
+            magnitude = terms.get("endog magnitude")
+            level = terms.get("endog level")
+            exog = "the patient "+terms.get("exog type")+" "+terms.get("exog var name")
+        
+            parent_strngs = []
+            for parent in parents:
+                if parent == "pain":
+                    parent = "the patient self-reports significant pain"
+                else:
+                    parent_terms = self.var_dict.get(parent)
+                    parent = "{} is {}".format(parent,parent_terms.get("endog magnitude"))
+                parent_strngs.append(parent)
+            parent_strngs.append(exog)
+            if var != self.leaf:
+                if var == self.root:
+                    strng = " and ".join(parent_strngs)
+                else:
+                    strng = " or ".join(parent_strngs)
+                strng = "If " + strng + ", then {} {} will be {} ({}).".format(endog_type,
+                                                                               var,
+                                                                               magnitude,
+                                                                               level)
+            else:
+                strng = " and ".join(parent_strngs)
+                strng = "If " + strng + ", then the surgeon will recommend surgery.".format(endog_type,
+                                                                                            var,
+                                                                                            magnitude,
+                                                                                            level)
+            strngs.append(strng)
+        strngs.append(outro)
+        
+        self.causal_context = " ".join(strngs)
+        return self.causal_context
+
+
+    def get_patient_history(self,
+                            n_extra_vars: int = 2) -> str:
 
         # Get patient sex and name according to sex.
         self.sex = np.random.choice(["male", "female"], size = 1).item()
@@ -460,66 +510,18 @@ class TaskGenerator:
             self.rating = np.random.randint(low = 1, high = self.pain_threshold, size = 1).item()
         self.mg = np.random.choice([75,100,250,500], size = 1).item()
 
-        # Construct prompt.
-        intro = "Chronic disease {} sometimes requires surgical intervention,".format(self.disease)
-        intro += " depending on genetics, patient history, vital signs, and lab results. The patient will experience" 
-        intro += " significant pain (rated greater than or equal to {}/10)".format(self.pain_threshold)
-        intro += " if they carry allele {},".format(self.var_dict.get("pain").get("exog var name"))
-        intro += " a genetic marker for severe {}.".format(self.disease)
-        outro = "Assume that all factors influencing the surgeon are fully described here."
-        strngs = [intro]
-        for var,terms in self.var_dict.items():
-            if var == "pain":
-                continue
-            parents = terms.get("parents")
-            endog_type = terms.get("endog type")
-            magnitude = terms.get("endog magnitude")
-            level = terms.get("endog level")
-            exog = "the patient "+terms.get("exog type")+" "+terms.get("exog var name")
+        self.history = "Now, we will review the history and physical notes for patient {}.".format(self.name) 
+        self.history += " History of Present Illness: {} is a {}-year-old".format(self.name, self.age)
+        self.history += " {} with {} who presented to the emergency department with acute".format(self.sex, self.disease)
+        self.history += " onset pain that began {} hours prior to arrival.".format(self.hours)
+        self.history += " Pain was rated {}/10. The patient reports the pain has been persistent since onset.".format(self.rating)
+        self.history += " The patient took aspirin ({} mg) at home with minimal relief.".format(self.mg)
+        self.history += "\nGenetic Screening: Patient carries alleles {}.".format(obs_alleles_str)
+        self.history += "\nFamily History: {}.\nMedications: {}.".format(obs_family_history_str,medications)
+        self.history += "\nPast Surgical History: Prior surgeries for {}.".format(obs_previous_surgeries_str)
         
-            parent_strngs = []
-            for parent in parents:
-                if parent == "pain":
-                    parent = "the patient self-reports significant pain"
-                else:
-                    parent_terms = self.var_dict.get(parent)
-                    parent = "{} is {}".format(parent,parent_terms.get("endog magnitude"))
-                parent_strngs.append(parent)
-            parent_strngs.append(exog)
-            if var != self.leaf:
-                if var == self.root:
-                    strng = " and ".join(parent_strngs)
-                else:
-                    strng = " or ".join(parent_strngs)
-                strng = "If " + strng + ", then {} {} will be {} ({}).".format(endog_type,
-                                                                               var,
-                                                                               magnitude,
-                                                                               level)
-            else:
-                strng = " and ".join(parent_strngs)
-                strng = "If " + strng + ", then the surgeon will recommend surgery.".format(endog_type,
-                                                                                            var,
-                                                                                            magnitude,
-                                                                                            level)
-            strngs.append(strng)
-        strngs.append(outro)
+        return self.history
         
-        self.context = " ".join(strngs)
-
-        # Add patient history.
-        history = "\n\nNow, we will review the history and physical notes for patient {}.".format(self.name) 
-        history += " History of Present Illness: {} is a {}-year-old".format(self.name, self.age)
-        history += " {} with {} who presented to the emergency department with acute".format(self.sex, self.disease)
-        history += " onset pain that began {} hours prior to arrival.".format(self.hours)
-        history += " Pain was rated {}/10. The patient reports the pain has been persistent since onset.".format(self.rating)
-        history += " The patient took aspirin ({} mg) at home with minimal relief.".format(self.mg)
-        history += "\nGenetic Screening: Patient carries alleles {}.".format(obs_alleles_str)
-        history += "\nFamily History: {}.\nMedications: {}.".format(obs_family_history_str,medications)
-        history += "\nPast Surgical History: Prior surgeries for {}.".format(obs_previous_surgeries_str)
-        self.context += history
-        
-        return self.context
-
 
     def get_truth(self, 
                   intervene_node: str = None,
@@ -541,23 +543,15 @@ class TaskGenerator:
                 
             # Get causal parents.
             parents_idx = np.nonzero(self.adj_dag[:,i])[0]
-        
+
             # Generate data.
-            if len(parents_idx) > 0:
+            if self.nodes[i] == intervene_node:
+                self.endog_true_binary[i] = intervene_value
+            else:
                 for parent in parents_idx:
-                    if self.nodes[parent] != intervene_node:
-                        #print("var,fun,par:",
-                              #self.endog_true_binary[i],
-                              #self.causal_functions[i],
-                              #self.endog_true_binary[parent])
-                        self.endog_true_binary[i] = fun((self.endog_true_binary[i],self.endog_true_binary[parent]))
-                        #print("=", self.endog_true_binary[i])
-                    else:
-                        #print("var,fun,par:",
-                              #self.endog_true_binary[i],
-                              #self.causal_functions[i],
-                              #self.endog_true_binary[parent])
-                        self.endog_true_binary[i] = fun((self.endog_true_binary[i],intervene_value))
+                    #print("var,fun,par:",self.endog_true_binary[i],self.causal_functions[i],self.endog_true_binary[parent])
+                    self.endog_true_binary[i] = fun((self.endog_true_binary[i],self.endog_true_binary[parent]))
+                    #print("=", self.endog_true_binary[i])
                         
         return self.endog_true_binary
 
@@ -579,7 +573,13 @@ class TaskGenerator:
                                                self.var_dict.get(effect).get("endog magnitude"))
             else:
                 q = "Will the surgeon recommend surgery?"
-            self.f_query_dict[effect] = q+outro
+            true_all = dict(zip(self.nodes,self.get_truth(intervene_node = None)))
+            true_exog = dict(zip(self.exog_names,self.exog_true_binary))
+            true_response = true_all.get(effect)
+            self.f_query_dict[effect] = {"Prompt": q+outro, 
+                                         "True endogenous": true_all,
+                                         "True exogenous": true_exog,
+                                         "True response": true_response}
 
         return self.f_query_dict
 
@@ -614,18 +614,12 @@ class TaskGenerator:
                 q_1 = "Now suppose that the patient will be in significant pain regardless of all other circumstances."
             else:
                 q_1 = "Now suppose that {} {} will {} regardless of all other circumstances.".format(cause_type,cause,cf_1)
-            true_all, true_noise = self.sample_scm(n = 1,
-                                                   intervene_node = cause,
-                                                   intervene_value = 1,
-                                                   return_dfs = False)
-            for key,val in true_all.items():
-                true_all[key] = int(val.item())
-            for key,val in true_noise.items():
-                true_noise[key] = int(val.item())
+            true_all = dict(zip(self.nodes,self.get_truth(intervene_node = cause, intervene_value = 1)))
+            true_exog = dict(zip(self.exog_names,self.exog_true_binary))
             true_response = true_all.get(effect)
             self.cf_1_query_dict[pair] = {"Prompt": q_1 + outro_a + outro_b, 
                                           "True endogenous": true_all,
-                                          "True exogenous": true_noise,
+                                          "True exogenous": true_exog,
                                           "True response": true_response}
 
             # Query under counterfactual cause = False.
@@ -633,18 +627,11 @@ class TaskGenerator:
                 q_0 = "Now suppose that the patient will not be in pain regardless of all other circumstances."
             else:
                 q_0 = "Now suppose that {} {} will {} regardless of all other circumstances.".format(cause_type,cause,cf_0)
-            true_all, true_noise = self.sample_scm(n = 1,
-                                                   intervene_node = cause,
-                                                   intervene_value = 0,
-                                                   return_dfs = False)
-            for key,val in true_all.items():
-                true_all[key] = int(val.item())
-            for key,val in true_noise.items():
-                true_noise[key] = int(val.item())
+            true_all = dict(zip(self.nodes,self.get_truth(intervene_node = cause, intervene_value = 0)))
             true_response = true_all.get(effect)
             self.cf_0_query_dict[pair] = {"Prompt": q_0 + outro_a + outro_b, 
                                           "True endogenous": true_all,
-                                          "True exogenous": true_noise,
+                                          "True exogenous": true_exog,
                                           "True response": true_response}
             
         return self.cf_1_query_dict, self.cf_0_query_dict
