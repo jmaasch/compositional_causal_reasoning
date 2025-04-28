@@ -649,7 +649,7 @@ class DataSetGenerator():
 
     def get_dataset(self, 
                     graph_sizes: list = [[2,2,2],[3,3,3],[4,4,4],[5,5,5]],
-                    n_tasks_per_size: int = 10
+                    n_tasks_per_size: int = 10,
                     n_samples_per_task: int = 100) -> pd.DataFrame:
         
         dfs = []
