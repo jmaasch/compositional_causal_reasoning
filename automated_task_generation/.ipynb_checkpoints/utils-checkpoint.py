@@ -53,13 +53,26 @@ class Utils():
         return res
 
 
+    def get_pns_direct(self,
+                       df: pd.DataFrame, 
+                       y_do_x0: str, 
+                       y_do_x1: str) -> float:
+
+        '''
+        Compute the PNS directly from interventional data.
+        '''
+    
+        df = df.astype("bool")
+        return np.mean(df[y_do_x1] & ~df[y_do_x0])
+
+
     def get_ate(self,
-                df_do_1: pd.DataFrame, 
-                df_do_0: pd.DataFrame,
-                effect_do_1: str,
-                effect_do_0: str) -> float:
+                df_y_do_x1: pd.DataFrame,
+                df_y_do_x0: pd.DataFrame,
+                y_do_x1: str,
+                y_do_x0: str) -> float:
         
-        return df_do_1[effect_do_1].mean() - df_do_0[effect_do_0].mean()
+        return df_y_do_x1[y_do_x1].mean() - df_y_do_x0[y_do_x0].mean()
 
 
     def plot_nx(self,

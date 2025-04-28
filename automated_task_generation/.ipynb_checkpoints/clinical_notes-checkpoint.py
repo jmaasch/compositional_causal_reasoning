@@ -516,9 +516,9 @@ class TaskGenerator:
         self.history += " onset pain that began {} hours prior to arrival.".format(self.hours)
         self.history += " Pain was rated {}/10. The patient reports the pain has been persistent since onset.".format(self.rating)
         self.history += " The patient took aspirin ({} mg) at home with minimal relief.".format(self.mg)
-        self.history += "\nGenetic Screening: Patient carries alleles {}.".format(obs_alleles_str)
-        self.history += "\nFamily History: {}.\nMedications: {}.".format(obs_family_history_str,medications)
-        self.history += "\nPast Surgical History: Prior surgeries for {}.".format(obs_previous_surgeries_str)
+        self.history += " Genetic Screening: Patient carries alleles {}.".format(obs_alleles_str)
+        self.history += " Family History: {}. Medications: {}.".format(obs_family_history_str,medications)
+        self.history += " Past Surgical History: Prior surgeries for {}.".format(obs_previous_surgeries_str)
         
         return self.history
         
@@ -568,11 +568,11 @@ class TaskGenerator:
         for pair in [self.global_quantity]+self.local:
             effect = pair[1]
             if effect != "surgery":
-                q = "Will {} {} be {}?".format(self.var_dict.get(effect).get("endog type"),
+                q = "Given these history and physical notes, will {} {} be {}?".format(self.var_dict.get(effect).get("endog type"),
                                                effect,
                                                self.var_dict.get(effect).get("endog magnitude"))
             else:
-                q = "Will the surgeon recommend surgery?"
+                q = "Given these history and physical notes, will the surgeon recommend surgery?"
             true_all = dict(zip(self.nodes,self.get_truth(intervene_node = None)))
             true_exog = dict(zip(self.exog_names,self.exog_true_binary))
             true_response = true_all.get(effect)
