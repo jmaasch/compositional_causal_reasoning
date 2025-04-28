@@ -14,6 +14,10 @@ from utils import Utils
 
 class TaskGenerator:
 
+    '''
+    Generates compositional causal reasoning tasks.
+    '''
+
 
     def __init__(self,
                  n_per_bcc: list = [3,3,3], 
@@ -635,7 +639,141 @@ class TaskGenerator:
                                           "True response": true_response}
             
         return self.cf_1_query_dict, self.cf_0_query_dict
+
+
+class DataSetGenerator():
+
+    '''
+    Generates datasets using TaskGenerator.
+    '''
+
+    def get_dataset(self, 
+                    graph_sizes: list = [[2,2,2],[3,3,3],[4,4,4],[5,5,5]],
+                    n_tasks_per_size: int = 10
+                    n_samples_per_task: int = 100) -> pd.DataFrame:
         
+        dfs = []
+        for size in graph_sizes:
+            
+            for task in range(n_tasks_per_size):
+            
+                tg = TaskGenerator(n_per_bcc = size, 
+                                   bcc_types = ["cycle"]*len(size),
+                                   plot = False)
+                context = [tg.get_causal_context()]*n_samples_per_task
+                adj_dag = [tg.adj_dag]*n_samples_per_task
+                nodes_dag = [tg.nodes]*n_samples_per_task
+                adj_cct = [tg.adj_cct]*n_samples_per_task
+                nodes_cct = [list(tg.cct.nodes())]*n_samples_per_task
+                
+                global_qs = [tg.get_global()]*n_samples_per_task
+                local_qs = [tg.get_local()]*n_samples_per_task
+                compositions = [tg.get_compositions()]*n_samples_per_task
+                
+                patient_histories = []
+                factual_queries = []
+                cf_1_queries = []
+                cf_0_queries = []
+                
+                for i in range(n_samples_per_task):
+                    patient_histories.append(tg.get_patient_history(n_extra_vars = 2))
+                    factual_queries.append(tg.get_factual_queries())
+                    cf_1, cf_0 = tg.get_counterfactual_queries()
+                    cf_1_queries.append(cf_1)
+                    cf_0_queries.append(cf_0)
+                
+                df = pd.DataFrame({
+                    "Context ID": [task]*n_samples_per_task, 
+                    "Sample ID": range(n_samples_per_task),
+                    "Nodes per BCC": size[0],
+                    "Causal context": context, 
+                    "DAG adjacency matrix": adj_dag, 
+                    "DAG nodes": nodes_dag,
+                    "CCT adjacency matrix": adj_cct, 
+                    "CCT nodes": nodes_cct,
+                    "Global quantity": global_qs,
+                    "Local quantities": local_qs,
+                    "Compositions": compositions,
+                    "Patient history": patient_histories, 
+                    "Factual queries": factual_queries, 
+                    "Counterfactual queries (cause = True)": cf_1_queries, 
+                    "Counterfactual queries (cause = False)": cf_0_queries
+                })
+                df.insert(0, "Task ID",
+                          ['.'.join(i) for i in zip(df["Context ID"].astype(str),df["Sample ID"].astype(str),df["Nodes per BCC"].astype(str))])
+                dfs.append(df)
+        
+        df = pd.concat(dfs).reset_index(drop = True)
+        return df
+
+
+    def process_prompts(self, 
+                        df: pd.DataFrame) -> pd.DataFrame:
+
+        '''
+        Process dataframe returned by get_dataset(), returning factual and paired counterfactual
+        prompts for easy use in benchmarking.
+        '''
+
+        dfs_fact = []
+        dfs_cf = []
+        
+        for row in range(len(df)):
+            context_id = df.loc[row, "Context ID"]
+            task_id = df.loc[row, "Task ID"]
+            fact = df.loc[row, "Factual queries"]
+            cf_1 = df.loc[row, "Counterfactual queries (cause = True)"]
+            cf_0 = df.loc[row, "Counterfactual queries (cause = False)"]
+            causal_context = df.loc[row, "Causal context"]
+            patient_history = df.loc[row, "Patient history"]
+        
+            # Get factual prompt data.
+            factual_effects = []
+            factual_prompts = []
+            factual_true = []
+            for effect,q_dict in fact.items():
+                factual_effects.append(effect)
+                factual_prompts.append(" ".join([causal_context,patient_history,q_dict.get("Prompt")]))
+                factual_true.append(q_dict.get("True response"))
+            df_fact = pd.DataFrame({"Context ID": [context_id]*len(factual_effects),
+                                    "Task ID": [task_id]*len(factual_effects),
+                                    "Effect": factual_effects,
+                                    "Prompt": factual_prompts,
+                                    "True": factual_true})
+            dfs_fact.append(df_fact)
+        
+            # Get counterfactual prompt data.
+            pairs = []
+            causes = []
+            effects = []
+            cf_1_prompts = []
+            cf_1_true = []
+            cf_0_prompts = []
+            cf_0_true = []
+            for pair,q_dict in cf_1.items():
+                pairs.append(pair)
+                causes.append(pair[0])
+                effects.append(pair[1])
+                cf_1_prompts.append(" ".join([causal_context,patient_history,q_dict.get("Prompt")]))
+                cf_1_true.append(q_dict.get("True response"))
+            df_cf = pd.DataFrame({"Context ID": [context_id]*len(effects),
+                                    "Task ID": [task_id]*len(effects),
+                                    "Cause-effect pair": pairs,
+                                    "Cause": causes,
+                                    "Effect": effects,
+                                    "Prompt (cause = True)": cf_1_prompts,
+                                    "True (cause = True)": cf_1_true})
+            for pair,q_dict in cf_0.items():
+                cf_0_prompts.append(" ".join([causal_context,patient_history,q_dict.get("Prompt")]))
+                cf_0_true.append(q_dict.get("True response"))
+            df_cf["Prompt (cause = False)"] = cf_0_prompts
+            df_cf["True (cause = False)"] = cf_0_true
+            dfs_cf.append(df_cf)
+        
+        df_fact = pd.concat(dfs_fact).reset_index(drop = True)
+        df_cf = pd.concat(dfs_cf).reset_index(drop = True)
+        
+        return df_fact,df_cf
             
 
         

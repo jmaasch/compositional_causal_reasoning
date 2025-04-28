@@ -67,12 +67,11 @@ class Utils():
 
 
     def get_ate(self,
-                df_y_do_x1: pd.DataFrame,
-                df_y_do_x0: pd.DataFrame,
+                df: pd.DataFrame, 
                 y_do_x1: str,
                 y_do_x0: str) -> float:
         
-        return df_y_do_x1[y_do_x1].mean() - df_y_do_x0[y_do_x0].mean()
+        return df[y_do_x1].mean() - df[y_do_x0].mean()
 
 
     def plot_nx(self,
