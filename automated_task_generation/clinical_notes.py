@@ -655,7 +655,8 @@ class DataSetGenerator():
         dfs = []
         for size in graph_sizes:
             
-            for task in range(n_tasks_per_size):
+            start = graph_sizes.index(size)*n_tasks_per_size
+            for task in range(start,start+n_tasks_per_size):
             
                 tg = TaskGenerator(n_per_bcc = size, 
                                    bcc_types = ["cycle"]*len(size),
