@@ -469,28 +469,28 @@ class TaskGenerator:
         
         # Get observed alleles.
         if len(self.alleles) > 0:
-            total_alleles = np.random.randint(low = 1, high = len(self.alleles)+1, size = 1).item()
+            total_alleles = np.random.randint(low = 0, high = len(self.alleles)+1, size = 1).item()
         else:
             total_alleles = 0
-        self.obs_alleles = list(np.random.choice(self.alleles, size = total_alleles))
+        self.obs_alleles = list(np.random.choice(self.alleles, size = total_alleles, replace = False))
         self.extra_alleles = ["".join(choices(string.ascii_uppercase+string.digits, k=4)) for _ in range(n_extra_vars)]
         obs_alleles_str = ", ".join(self.obs_alleles+self.extra_alleles)
         
         # Get observed family medical history.
         if len(self.family_history) > 0:
-            total_family_history = np.random.randint(low = 1, high = len(self.family_history)+1, size = 1).item()
+            total_family_history = np.random.randint(low = 0, high = len(self.family_history)+1, size = 1).item()
         else:
             total_family_history = 0
-        self.obs_family_history = list(np.random.choice(self.family_history, size = total_family_history))
+        self.obs_family_history = list(np.random.choice(self.family_history, size = total_family_history, replace = False))
         self.extra_family_history = ["".join(choices(string.ascii_uppercase+string.digits, k=4)) for _ in range(n_extra_vars)]
         obs_family_history_str = ", ".join(self.obs_family_history+self.extra_family_history)
         
         # Get observed surgical history.
         if len(self.previous_surgeries) > 0:
-            total_previous_surgeries = np.random.randint(low = 1, high = len(self.previous_surgeries)+1, size = 1).item()
+            total_previous_surgeries = np.random.randint(low = 0, high = len(self.previous_surgeries)+1, size = 1).item()
         else:
             total_previous_surgeries = 0
-        self.obs_previous_surgeries = list(np.random.choice(self.previous_surgeries, size = total_previous_surgeries))
+        self.obs_previous_surgeries = list(np.random.choice(self.previous_surgeries, size = total_previous_surgeries, replace = False))
         self.extra_previous_surgeries = ["".join(choices(string.ascii_uppercase+string.digits, k=4)) for _ in range(n_extra_vars)]
         obs_previous_surgeries_str = ", ".join(self.obs_previous_surgeries+self.extra_previous_surgeries)
         
@@ -511,7 +511,7 @@ class TaskGenerator:
         if self.exog_true_binary[0] == 1: # True pain must be at least threshold.
             self.rating = np.random.randint(low = self.pain_threshold, high = 11, size = 1).item()
         else: # True pain must be below threshold.
-            self.rating = np.random.randint(low = 1, high = self.pain_threshold, size = 1).item()
+            self.rating = np.random.randint(low = 3, high = self.pain_threshold, size = 1).item()
         self.mg = np.random.choice([75,100,250,500], size = 1).item()
 
         self.history = "Now, we will review the history and physical notes for patient {}.".format(self.name) 
