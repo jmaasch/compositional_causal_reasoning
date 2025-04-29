@@ -361,12 +361,16 @@ class TaskGenerator:
     
 
     def get_causal_context(self) -> str:
+
+        '''
+        Define causal model in text.
+        '''
     
         # Get variable metadata for context prompt.
         self.var_dict = dict()
         self.alleles = []             # exogenous variables.
-        self.family_history = []      # exogenous variables.
-        self.previous_surgeries = []  # exogenous variables.
+        self.fam_hist = []      # exogenous variables.
+        self.prev_surg = []  # exogenous variables.
         self.disease = ''.join(choices(string.ascii_uppercase+string.digits, k=6))
         self.pain_threshold = np.random.choice([7, 8, 9], size = 1).item()
         endog_options = ["lab", "vital"]
@@ -390,9 +394,9 @@ class TaskGenerator:
             if "allele" in exog:
                 self.alleles.append(u)
             elif "family" in exog:
-                self.family_history.append(u)
+                self.fam_hist.append(u)
             elif "surgery" in exog:
-                self.previous_surgeries.append(u)
+                self.prev_surg.append(u)
         
             # Get magnitudes.
             mag = np.random.choice(magnitudes, size = 1).item()
@@ -460,6 +464,10 @@ class TaskGenerator:
     def get_patient_history(self,
                             n_extra_vars: int = 2) -> str:
 
+        '''
+        Sample exogenous variables and construct text prompt.
+        '''
+
         # Get patient sex and name according to sex.
         self.sex = np.random.choice(["male", "female"], size = 1).item()
         f = Faker()
@@ -467,33 +475,28 @@ class TaskGenerator:
             self.name = f.name_female()
         else:
             self.name = f.name_male()
+
+
+        # Get observed exogenous variables based on user-selected Bernoulli parameters.
+        # These are the same parameters used to sample exogenous variables in self.sample_scm().
+        bern = lambda p: np.random.binomial(n = 1, p = p, size = 1).item()
+        self.exog_true_binary = [bern(p) for p,_ in zip(self.p,self.exog_names)]
+        self.exog_obs = [x for x,y in zip(self.exog_names,self.exog_true_binary) if y == 1]
         
         # Get observed alleles.
-        if len(self.alleles) > 0:
-            total_alleles = np.random.randint(low = 0, high = len(self.alleles)+1, size = 1).item()
-        else:
-            total_alleles = 0
-        self.obs_alleles = list(np.random.choice(self.alleles, size = total_alleles, replace = False))
-        self.extra_alleles = ["".join(choices(string.ascii_uppercase+string.digits, k=4)) for _ in range(n_extra_vars)]
-        obs_alleles_str = ", ".join(self.obs_alleles+self.extra_alleles)
+        self.alleles_obs = [x for x in self.exog_obs if x in self.alleles]
+        self.alleles_extra = ["".join(choices(string.ascii_uppercase+string.digits, k=4)) for _ in range(n_extra_vars)]
+        alleles_obs_str = ", ".join(self.alleles_obs+self.alleles_extra)
         
         # Get observed family medical history.
-        if len(self.family_history) > 0:
-            total_family_history = np.random.randint(low = 0, high = len(self.family_history)+1, size = 1).item()
-        else:
-            total_family_history = 0
-        self.obs_family_history = list(np.random.choice(self.family_history, size = total_family_history, replace = False))
-        self.extra_family_history = ["".join(choices(string.ascii_uppercase+string.digits, k=4)) for _ in range(n_extra_vars)]
-        obs_family_history_str = ", ".join(self.obs_family_history+self.extra_family_history)
+        self.fam_hist_obs = [x for x in self.exog_obs if x in self.fam_hist]
+        self.fam_hist_extra = ["".join(choices(string.ascii_uppercase+string.digits, k=4)) for _ in range(n_extra_vars)]
+        fam_hist_obs_str = ", ".join(self.fam_hist_obs+self.fam_hist_extra)
         
         # Get observed surgical history.
-        if len(self.previous_surgeries) > 0:
-            total_previous_surgeries = np.random.randint(low = 0, high = len(self.previous_surgeries)+1, size = 1).item()
-        else:
-            total_previous_surgeries = 0
-        self.obs_previous_surgeries = list(np.random.choice(self.previous_surgeries, size = total_previous_surgeries, replace = False))
-        self.extra_previous_surgeries = ["".join(choices(string.ascii_uppercase+string.digits, k=4)) for _ in range(n_extra_vars)]
-        obs_previous_surgeries_str = ", ".join(self.obs_previous_surgeries+self.extra_previous_surgeries)
+        self.prev_surg_obs = [x for x in self.exog_obs if x in self.prev_surg]
+        self.prev_surg_extra = ["".join(choices(string.ascii_uppercase+string.digits, k=4)) for _ in range(n_extra_vars)]
+        prev_surg_obs_str = ", ".join(self.prev_surg_obs+self.prev_surg_extra)
         
         # Get observed medications (not used in causal graph).
         n_meds = np.random.randint(low = 1, high = 3, size = 1).item()
@@ -501,10 +504,6 @@ class TaskGenerator:
         amounts = [str(np.random.choice([10,25,50,75,100,150],size=1).item()) for _ in range(n_meds)]
         self.medications = [x+" "+y+" mg/day" for x,y in zip(medications,amounts)]
         medications = ", ".join(self.medications)
-        
-        # Get observed exogenous values (binary).
-        self.exog_obs = self.obs_family_history + self.obs_alleles + self.obs_previous_surgeries
-        self.exog_true_binary = [int(var in self.exog_obs) for var in self.exog_names]
 
         # Get age and pain details.
         self.age = np.random.randint(low = 53, high = 70, size = 1).item()
@@ -521,9 +520,9 @@ class TaskGenerator:
         self.history += " onset pain that began {} hours prior to arrival.".format(self.hours)
         self.history += " Pain was rated {}/10. The patient reports the pain has been persistent since onset.".format(self.rating)
         self.history += " The patient took aspirin ({} mg) at home with minimal relief.".format(self.mg)
-        self.history += " Genetic Screening: Patient carries alleles {}.".format(obs_alleles_str)
-        self.history += " Family History: {}. Medications: {}.".format(obs_family_history_str,medications)
-        self.history += " Past Surgical History: Prior surgeries for {}.".format(obs_previous_surgeries_str)
+        self.history += " Genetic Screening: Patient carries alleles {}.".format(alleles_obs_str)
+        self.history += " Family History: {}. Medications: {}.".format(fam_hist_obs_str,medications)
+        self.history += " Past Surgical History: Prior surgeries for {}.".format(prev_surg_obs_str)
         
         return self.history
         
