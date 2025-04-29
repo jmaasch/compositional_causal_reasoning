@@ -843,6 +843,37 @@ class DataSetGenerator():
             self.pns_dict[context_id] = pair_dict
         
         return self.pns_dict
+
+
+    def get_internal_consistency_thresholds(self, 
+                                            multiplier: float = 2.0) -> dict:
         
+        '''
+        Return a dictionary that maps compositions to their correctness threshold
+        for internal compositional consistency evaluation. Thresholds are the RAE
+        for each composition relative to the global quantity of interest, times a
+        multiplier of the users choice. 
+
+        RAE = [abs(global PNS - composition PNS) / global PNS]
+        Threhold = RAE*multiplier
+        
+        This method of obtaining the threshold accounts for the innate error owed
+        to PNS estimation on finite samples, while the multiplier represents the
+        user's tolerance level for errors larger than the finite sample error.
+        '''
+
+        self.threshold_dict = dict()
+        for context in self.df["Context ID"].unique():
+            context_dict = dict()
+            df_context = self.df[self.df["Context ID"] == context]
+            glo = df_context["Global quantity"].unique()[0]
+            compositions = df_context["Compositions"].value_counts().index.item()
+            for comp in compositions:
+                glo_pns = self.pns_dict.get(context).get(str(glo))
+                comp_pns = self.pns_dict.get(context).get(str(comp))
+                context_dict[str(comp)] = (abs(glo_pns - comp_pns) / glo_pns)*multiplier
+            self.threshold_dict[context] = context_dict
+        
+        return self.threshold_dict
         
 
