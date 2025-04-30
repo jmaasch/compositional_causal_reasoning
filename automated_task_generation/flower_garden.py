@@ -15,7 +15,7 @@ from utils import Utils
 from task_generator import TaskGenerator
 
 
-class CandyParty(TaskGenerator):
+class FlowerGarden(TaskGenerator):
 
     '''
     Generates compositional causal reasoning tasks.
@@ -24,11 +24,20 @@ class CandyParty(TaskGenerator):
     def set_thresholds(self):
 
         '''
-        Set thresholds for happiness.
+        Set quantitative thresholds for happiness.
         '''
         
         self.thresh = [int(x*10) for x in self.p]
 
+
+    def init_colors(self):
+
+        self.color_families = ["purple", "yellow", "pink", "red"] 
+        self.colors = {"purple": ["lilac purple", "deep purple", "amethyst purple", "eggplant purple"], 
+                       "yellow": ["pastel yellow", "canary yellow", "lemon yellow", "mustard yellow"],
+                       "pink": ["baby pink", "hot pink", "salmon pink", "bubblegum pink"],
+                       "red": ["fire engine red", "cardinal red", "blood red", "brick red"]} 
+        
         
     def get_dag(self,
                 n_per_bcc: list = [3,3,3], 
@@ -124,27 +133,27 @@ class CandyParty(TaskGenerator):
         Define causal model in text.
         '''
 
+        # Set quantitative and qualitative desiderata.
         self.set_thresholds()
-        intro = "A group of friends is going to a party where candies will be randomly distributed. "
-        self.clauses = [" will be happy if she gets at least ", # clauses[0]
-                        " candies",                             # clauses[1]
-                        " is happy",                            # clauses[2]
-                        " After distributing the candies, ",    # clauses[3]
-                        " gets ",                               # clauses[4] 
-                        " candies"]                             # clauses[5]
-
+        self.init_colors()
+        self.family_idx = np.random.randint(low = 0, high = len(self.color_families), size = len(self.nodes))
+        self.colors_wanted = [self.color_families[idx] for idx in self.family_idx]
+        
+        intro = "A group of friends is planting a bed of flowers from seed, but the seed packets are not labeled. "
+        self.clauses = [" will be happy if the flowers she planted are ", # clauses[0]
+                        " is happy",                                      # clauses[1]
+                        " Once the flowers bloom, ",                      # clauses[2]
+                        "'s flowers are "]                                # clauses[3] 
         strings = [intro]
-        for node,number in zip(self.nodes,self.thresh):
-            #parents = list(dag.predecessors(node)) # Auto-generated adjdagacency matrix is not upper triangular.
-            #parents = dag.pred[node]
+        for node,color in zip(self.nodes,self.colors_wanted):
             parents_idx = np.nonzero(self.adj_dag[:,self.nodes.index(node)])[0]
             parents = [self.nodes[i] for i in parents_idx]
             if len(parents) == 0:
-                string = node + self.clauses[0] + str(number) + self.clauses[1] + ". "
+                string = node + self.clauses[0] + color + ". "
             else:
-                string = node + self.clauses[0] + str(number) + self.clauses[1]
+                string = node + self.clauses[0] + color
                 for parent in parents:
-                    string += " or if " + parent + self.clauses[2]
+                    string += " or if " + parent + self.clauses[1]
                 string += ". "
             strings.append(string)
         self.causal_context = "".join(strings)
@@ -165,15 +174,18 @@ class CandyParty(TaskGenerator):
         self.exog_true_binary = [bern(p) for p,_ in zip(self.p,self.exog_names)]
         self.exog_obs = []
         for i in range(len(self.exog_true_binary)):
+            wanted = self.colors_wanted[i]
             if self.exog_true_binary[i] == 1:
-                self.exog_obs.append(randint([self.thresh[i],self.thresh[i]+3]))
+                self.exog_obs.append(np.random.choice(self.colors.get(wanted),size=1).item())
             else:
-                self.exog_obs.append(randint([2,self.thresh[i]]))
+                not_wanted = [x for x in self.colors_wanted if x != wanted]
+                not_wanted = np.random.choice(not_wanted,size=1).item()
+                self.exog_obs.append(np.random.choice(self.colors.get(not_wanted),size=1).item())
 
-        self.sample_context = self.clauses[3][:]
-        for name,number in zip(self.nodes[:len(self.nodes)-1],self.exog_obs[:len(self.nodes)-1]):
-            self.sample_context += name + self.clauses[4] + str(number) + self.clauses[5] + ", "
-        self.sample_context += "and " +  self.nodes[-1] + self.clauses[4] + str(self.exog_obs[-1]) + self.clauses[5] + "."
+        self.sample_context = self.clauses[2][:]
+        for name,color in zip(self.nodes[:len(self.nodes)-1],self.exog_obs[:len(self.nodes)-1]):
+            self.sample_context += name + self.clauses[3] + color + ", "
+        self.sample_context += "and " +  self.nodes[-1] + self.clauses[3] + self.exog_obs[-1] + "."
         
         return self.sample_context
 

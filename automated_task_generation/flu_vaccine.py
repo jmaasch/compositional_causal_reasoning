@@ -15,7 +15,7 @@ from utils import Utils
 from task_generator import TaskGenerator
 
 
-class CandyParty(TaskGenerator):
+class FluVaccine(TaskGenerator):
 
     '''
     Generates compositional causal reasoning tasks.
@@ -126,12 +126,13 @@ class CandyParty(TaskGenerator):
 
         self.set_thresholds()
         intro = "A group of friends is going to a party where candies will be randomly distributed. "
-        self.clauses = [" will be happy if she gets at least ", # clauses[0]
-                        " candies",                             # clauses[1]
-                        " is happy",                            # clauses[2]
-                        " After distributing the candies, ",    # clauses[3]
-                        " gets ",                               # clauses[4] 
-                        " candies"]                             # clauses[5]
+        intro = "A group of friends is considering whether or not to get vaccinated against the flu this year. "
+        self.clauses = [" will get vaccinated if she was sick for at least ", # clauses[0]
+                        " days in the previous flu season",                   # clauses[1]
+                        " gets vaccinated",                                   # clauses[2]
+                        " During the previous flu season, ",                  # clauses[3]
+                        " was sick for ",                                     # clauses[4]
+                        " days"]                                              # clauses[5]
 
         strings = [intro]
         for node,number in zip(self.nodes,self.thresh):
@@ -188,7 +189,8 @@ class CandyParty(TaskGenerator):
         self.f_query_dict = dict()
         for pair in [self.global_quantity]+self.local:
             effect = pair[1]
-            q = "Is {} happy? Begin your response with Yes or No and be as concise as possible.".format(effect)
+            q = "Did {} get vaccinated?".format(effect)
+            q += " Begin your response with Yes or No and be as concise as possible."
             true_all = dict(zip(self.nodes,self.get_truth(intervene_node = None)))
             true_exog = dict(zip(self.exog_names,self.exog_true_binary))
             true_response = true_all.get(effect)
@@ -218,7 +220,7 @@ class CandyParty(TaskGenerator):
             cause, effect = pair[0], pair[1]
 
             # Query under counterfactual cause = True.
-            q_1 = "Now, suppose that {} is happy regardless of all other circumstances.".format(cause)
+            q_1 = "Now, suppose that {} got vaccinated regardless of all other circumstances.".format(cause)
             q_1 += " With this new assumption, is {} happy?".format(effect)
             q_1 += " Begin your response with Yes or No and be as concise as possible."
             true_all = dict(zip(self.nodes,self.get_truth(intervene_node = cause, intervene_value = 1)))
@@ -230,7 +232,7 @@ class CandyParty(TaskGenerator):
                                           "True response": true_response}
 
             # Query under counterfactual cause = False.
-            q_0 = "Now, suppose that {} is not happy regardless of all other circumstances.".format(cause)
+            q_0 = "Now, suppose that {} did not get vaccinated regardless of all other circumstances.".format(cause)
             q_0 += " With this new assumption, is {} happy?".format(effect)
             q_0 += " Begin your response with Yes or No and be as concise as possible."
             true_all = dict(zip(self.nodes,self.get_truth(intervene_node = cause, intervene_value = 0)))

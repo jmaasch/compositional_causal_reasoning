@@ -20,6 +20,15 @@ class CandyParty(TaskGenerator):
     '''
     Generates compositional causal reasoning tasks.
     '''
+
+    def set_thresholds(self):
+
+        '''
+        Set thresholds for happiness.
+        '''
+        
+        self.thresh = [int(x*10) for x in self.p]
+
         
     def get_dag(self,
                 n_per_bcc: list = [3,3,3], 
@@ -115,32 +124,124 @@ class CandyParty(TaskGenerator):
         Define causal model in text.
         '''
 
+        self.set_thresholds()
         intro = "A group of friends is going to a party where candies will be randomly distributed. "
-        clauses = [" will be happy if she gets at least ", # clauses[0]
-                   " candies",                             # clauses[1]
-                   " is happy",                            # clauses[2]
-                   " After distributing the candies, ",    # clauses[3]
-                   " gets ",                               # clauses[4] 
-                   " candies"]                             # clauses[5]
+        self.clauses = [" will be happy if she gets at least ", # clauses[0]
+                        " candies",                             # clauses[1]
+                        " is happy",                            # clauses[2]
+                        " After distributing the candies, ",    # clauses[3]
+                        " gets ",                               # clauses[4] 
+                        " candies"]                             # clauses[5]
 
         strings = [intro]
-        for node,number in zip(self.nodes,self.threshold):
+        for node,number in zip(self.nodes,self.thresh):
             #parents = list(dag.predecessors(node)) # Auto-generated adjdagacency matrix is not upper triangular.
             #parents = dag.pred[node]
             parents_idx = np.nonzero(self.adj_dag[:,self.nodes.index(node)])[0]
             parents = [self.nodes[i] for i in parents_idx]
             if len(parents) == 0:
-                string = node + clauses[0] + str(number) + clauses[1] + ". "
+                string = node + self.clauses[0] + str(number) + self.clauses[1] + ". "
             else:
-                string = node + clauses[0] + str(number) + clauses[1]
+                string = node + self.clauses[0] + str(number) + self.clauses[1]
                 for parent in parents:
-                    string += conj + parent + clauses[2]
+                    string += " or if " + parent + self.clauses[2]
                 string += ". "
             strings.append(string)
-        self.causal_context = "".join(strings) + clauses[3]
-        for name,number in zip(self.nodes[:len(self.nodes)-1],self.received[:len(self.nodes)-1]):
-            self.causal_context += name + clauses[4] + str(number) + clauses[5] + ", "
-        self.causal_context += "and " +  self.nodes[-1] + clauses[4] + str(self.received[-1]) + clauses[5] + "."
+        self.causal_context = "".join(strings)
 
         return self.causal_context
+
+
+    def get_sample_context(self) -> str:
+
+        '''
+        Sample exogenous variables and construct text prompt.
+        '''
+
+        # Get observed exogenous variables based on user-selected Bernoulli parameters.
+        # These are the same parameters used to sample exogenous variables in self.sample_scm().
+        bern = lambda p : np.random.binomial(n = 1, p = p, size = 1).item()
+        randint = lambda lo_hi : np.random.randint(low = lo_hi[0], high = lo_hi[1], size = 1).item()
+        self.exog_true_binary = [bern(p) for p,_ in zip(self.p,self.exog_names)]
+        self.exog_obs = []
+        for i in range(len(self.exog_true_binary)):
+            if self.exog_true_binary[i] == 1:
+                self.exog_obs.append(randint([self.thresh[i],self.thresh[i]+3]))
+            else:
+                self.exog_obs.append(randint([2,self.thresh[i]]))
+
+        self.sample_context = self.clauses[3][:]
+        for name,number in zip(self.nodes[:len(self.nodes)-1],self.exog_obs[:len(self.nodes)-1]):
+            self.sample_context += name + self.clauses[4] + str(number) + self.clauses[5] + ", "
+        self.sample_context += "and " +  self.nodes[-1] + self.clauses[4] + str(self.exog_obs[-1]) + self.clauses[5] + "."
+        
+        return self.sample_context
+
+
+    def get_factual_queries(self) -> dict:
+
+        '''
+        Returns a dictionary of all causal queries of interest mapped to their
+        corresponding factual text prompts.
+        '''
+        
+        self.f_query_dict = dict()
+        for pair in [self.global_quantity]+self.local:
+            effect = pair[1]
+            q = "Is {} happy? Begin your response with Yes or No and be as concise as possible.".format(effect)
+            true_all = dict(zip(self.nodes,self.get_truth(intervene_node = None)))
+            true_exog = dict(zip(self.exog_names,self.exog_true_binary))
+            true_response = true_all.get(effect)
+            self.f_query_dict[effect] = {"Prompt": q, 
+                                         "True endogenous": true_all,
+                                         "True exogenous": true_exog,
+                                         "True response": true_response}
+
+        return self.f_query_dict
+
+
+    def get_counterfactual_queries(self) -> dict:
+
+        '''
+        Returns a dictionary of all causal queries of interest mapped to their
+        corresponding counterfactual text prompts (for intervention = 0 and = 1).
+        '''
+
+        if self.f_query_dict is None:
+            _ = self.get_factual_queries()
+
+        self.cf_0_query_dict = dict()
+        self.cf_1_query_dict = dict()
+        for pair in [self.global_quantity]+self.local:
+
+            # Extract cause and effect nodes.
+            cause, effect = pair[0], pair[1]
+
+            # Query under counterfactual cause = True.
+            q_1 = "Now, suppose that {} is happy regardless of all other circumstances.".format(cause)
+            q_1 += " With this new assumption, is {} happy?".format(effect)
+            q_1 += " Begin your response with Yes or No and be as concise as possible."
+            true_all = dict(zip(self.nodes,self.get_truth(intervene_node = cause, intervene_value = 1)))
+            true_exog = dict(zip(self.exog_names,self.exog_true_binary))
+            true_response = true_all.get(effect)
+            self.cf_1_query_dict[pair] = {"Prompt": q_1, 
+                                          "True endogenous": true_all,
+                                          "True exogenous": true_exog,
+                                          "True response": true_response}
+
+            # Query under counterfactual cause = False.
+            q_0 = "Now, suppose that {} is not happy regardless of all other circumstances.".format(cause)
+            q_0 += " With this new assumption, is {} happy?".format(effect)
+            q_0 += " Begin your response with Yes or No and be as concise as possible."
+            true_all = dict(zip(self.nodes,self.get_truth(intervene_node = cause, intervene_value = 0)))
+            true_exog = dict(zip(self.exog_names,self.exog_true_binary))
+            true_response = true_all.get(effect)
+            self.cf_0_query_dict[pair] = {"Prompt": q_0, 
+                                          "True endogenous": true_all,
+                                          "True exogenous": true_exog,
+                                          "True response": true_response}
+            
+        return self.cf_1_query_dict, self.cf_0_query_dict
+
+
         

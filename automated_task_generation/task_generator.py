@@ -52,7 +52,7 @@ class TaskGenerator:
 
         # Parameters to exogenous noise distributions.
         if bern == "random":
-            self.p = np.random.uniform(low = 0.2, high = 0.6, size = len(self.nodes))
+            self.p = np.random.uniform(low = 0.4, high = 0.8, size = len(self.nodes))
         else:
             self.p = [p]*len(self.nodes)
 
@@ -286,11 +286,11 @@ class TaskGenerator:
         # self.nodes should be in topological order, so parents will have been
         # generated before children (unless networkx changes its method).
         sample_dict = dict()
-        for i in range(len(self.nodes)):
-            if i == len(self.nodes)-1:
-                fun = lambda x: np.logical_and(x[0], x[1])
-            else:
+        for i in range(len(self.causal_functions)):
+            if self.causal_functions[i] == "or":
                 fun = lambda x: np.logical_or(x[0], x[1])
+            else:
+                fun = lambda x: np.logical_and(x[0], x[1])
             if intervene_node != self.nodes[i]:
                 sample = noise_terms[i]
                 #parents = list(dag.predecessors(node))

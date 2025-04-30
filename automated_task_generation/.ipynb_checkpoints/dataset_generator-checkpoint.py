@@ -28,7 +28,7 @@ class DataSetGenerator():
                     graph_sizes: list = [[2,2,2],[3,3,3],[4,4,4],[5,5,5]],
                     n_tasks_per_size: int = 10,
                     n_samples_per_task: int = 100,
-                    n_extra_vars: int = 2) -> pd.DataFrame:
+                    n_extra_vars: int = None) -> pd.DataFrame:
         
         dfs = []
         for size in graph_sizes:
@@ -60,7 +60,10 @@ class DataSetGenerator():
                 cf_0_queries = []
                 
                 for i in range(n_samples_per_task):
-                    sample_contexts.append(tg.get_sample_context(n_extra_vars = n_extra_vars))
+                    if n_extra_vars is not None:
+                        sample_contexts.append(tg.get_sample_context(n_extra_vars = n_extra_vars))
+                    else:
+                        sample_contexts.append(tg.get_sample_context())
                     factual_queries.append(tg.get_factual_queries())
                     cf_1, cf_0 = tg.get_counterfactual_queries()
                     cf_1_queries.append(cf_1)
