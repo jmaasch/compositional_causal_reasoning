@@ -96,4 +96,14 @@ class Utils():
                          with_labels = True)
         plt.show()
         plt.close()
+
+
+    def get_rae(self,
+                true: np.array, 
+                pred: np.array) -> float:
+
+        return abs(true - pred) / true
+
+
+
     

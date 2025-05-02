@@ -25,9 +25,10 @@ class DataSetGenerator():
         
     def get_dataset(self, 
                     task_generator, # ClinicalNotes, CandyParty, etc.
-                    graph_sizes: list = [[2,2,2],[3,3,3],[4,4,4],[5,5,5]],
+                    graph_sizes: list = [[2,2,2],[3,3,3],[4,4,4]],
                     n_tasks_per_size: int = 10,
-                    n_samples_per_task: int = 100,
+                    n_samples_per_task: int = 1000,
+                    reps_per_sample: int = None,
                     n_extra_vars: int = None) -> pd.DataFrame:
         
         dfs = []
@@ -93,6 +94,14 @@ class DataSetGenerator():
                 dfs.append(df)
         
         self.df = pd.concat(dfs).reset_index(drop = True)
+
+        # Replicate samples if desired.
+        if reps_per_sample is not None:
+            rep_ids = list(np.arange(reps_per_sample))*len(self.df)
+            self.df = pd.DataFrame(np.repeat(self.df.values, repeats = reps_per_sample, axis = 0), 
+                                   columns = self.df.columns)
+            self.df.insert(3, "Replicate ID", rep_ids)
+
         return self.df
 
 
@@ -110,6 +119,8 @@ class DataSetGenerator():
             context_id = self.df.loc[row, "Context ID"]
             task_id = self.df.loc[row, "Task ID"]
             sample_id = self.df.loc[row, "Sample ID"]
+            if "Replicate ID" in self.df.columns:
+                rep_id = self.df.loc[row, "Replicate ID"]
             n_bcc = self.df.loc[row, "Nodes per BCC"]
             fact = self.df.loc[row, "Factual queries"]
             cf_1 = self.df.loc[row, "Counterfactual queries (cause = True)"]
@@ -132,6 +143,8 @@ class DataSetGenerator():
                                     "Effect": factual_effects,
                                     "Prompt": factual_prompts,
                                     "True": factual_true})
+            if "Replicate ID" in self.df.columns:
+                df_fact.insert(3, "Replicate ID", rep_id)
             dfs_fact.append(df_fact)
         
             # Get counterfactual prompt data.
@@ -162,6 +175,8 @@ class DataSetGenerator():
                 cf_0_true.append(q_dict.get("True response"))
             df_cf["Prompt (cause = False)"] = cf_0_prompts
             df_cf["True (cause = False)"] = cf_0_true
+            if "Replicate ID" in self.df.columns:
+                df_cf.insert(3, "Replicate ID", rep_id)
             dfs_cf.append(df_cf)
         
         self.df_fact = pd.concat(dfs_fact).reset_index(drop = True)
@@ -230,7 +245,7 @@ class DataSetGenerator():
         Return a dictionary that maps compositions to their correctness threshold
         for internal compositional consistency evaluation. Thresholds are the RAE
         for each composition relative to the global quantity of interest, times a
-        multiplier of the users choice. 
+        multiplier of the user's choice. 
 
         RAE = [abs(global PNS - composition PNS) / global PNS]
         Threhold = RAE*multiplier

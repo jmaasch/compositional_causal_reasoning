@@ -99,6 +99,7 @@ class TaskGenerator:
         '''
 
         self.adj_cct = np.triu(np.ones((len(self.cct_sort),len(self.cct_sort))), k = 1)
+        self.adj_cct = self.adj_cct.astype(int)
         cct = nx.from_numpy_array(self.adj_cct, create_using = nx.DiGraph)
         cct = nx.relabel_nodes(cct, dict(zip(cct.nodes,self.cct_sort)))
 
