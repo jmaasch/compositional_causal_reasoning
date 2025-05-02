@@ -2,7 +2,7 @@
 
 Causal reasoning and compositional reasoning are two core aspirations in AI. Measuring these behaviors requires principled evaluation methods. Our work considers both behaviors simultaneously, under the umbrella of compositional causal reasoning (CCR): the ability to infer how causal measures compose and, equivalently, how causal quantities propagate through graphs. The CCR.GB benchmark is designed to measure CCR at all three levels of Pearl's Causal Hierarchy: (1) associational, (2) interventional, and (3) counterfactual.
 
-<img src="https://jmaasch.github.io/ccr_benchmark/static/images/pch.png" width="40">
+<img src="https://jmaasch.github.io/ccr_benchmark/static/images/pch.png" width="200">
 
 CCR.GB provides two artifacts:
 
