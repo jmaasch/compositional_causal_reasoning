@@ -64,11 +64,9 @@ class CellBio(TaskGenerator):
         if len(n_per_bcc) != len(bcc_types):
             raise Exception("len(n_per_bcc) must be equal to len(bcc_types).")
 
-        self.arm_dict = dict()
+        self.subgraph_dict = dict()
         root_name = ''.join(choices(string.ascii_uppercase+string.digits, k=4))
         leaf_name = ''.join(choices(string.ascii_uppercase+string.digits, k=4))
-        print("root", root_name)
-        print("leaf", leaf_name)
         for j in range(len(n_per_bcc)):
 
             # Construct first BCC.
@@ -128,7 +126,7 @@ class CellBio(TaskGenerator):
             labels = [root_name]+labels+[leaf_name]
             dag = nx.relabel_nodes(dag, dict(zip(dag.nodes,labels)))
 
-            self.arm_dict[j] = dag
+            self.subgraph_dict[j] = dag
             
             #self.utils.plot_nx(nx.to_numpy_array(dag), 
             #                   labels = list(dag.nodes), 
@@ -145,15 +143,14 @@ class CellBio(TaskGenerator):
             #plt.close()
 
         # Compose "arms" into full DAG.
-        dag = nx.compose(self.arm_dict.get(0),self.arm_dict.get(1))
-        if len(self.arm_dict.keys()) > 2:
-            for k in range(2,len(self.arm_dict.keys())):
-                dag = nx.compose(dag,self.arm_dict.get(k))
+        dag = nx.compose(self.subgraph_dict.get(0),self.subgraph_dict.get(1))
+        if len(self.subgraph_dict.keys()) > 2:
+            for k in range(2,len(self.subgraph_dict.keys())):
+                dag = nx.compose(dag,self.subgraph_dict.get(k))
 
         # Add direct edge from root to leaf.
         dag.add_edge(root_name, leaf_name, weight = coeff())
         self.direct_effects = nx.get_edge_attributes(dag,"weight")
-        print(self.direct_effects)
 
         if plot:
             self.utils.plot_nx(nx.to_numpy_array(dag), 
@@ -168,8 +165,28 @@ class CellBio(TaskGenerator):
 
     def get_cct(self,
                 plot: bool = True) -> nx.classes.graph.Graph:
+
+
+        self.cct = dict()
+        self.adj_cct = dict()
+        for key,cct_sort in self.cct_sort.items():
+
+            adj_cct = np.triu(np.ones((len(cct_sort),len(cct_sort))),k = 1)
+            adj_cct = adj_cct.astype(int)
+            cct = nx.from_numpy_array(adj_cct, create_using = nx.DiGraph)
+            cct = nx.relabel_nodes(cct, dict(zip(cct.nodes,cct_sort)))
+            self.adj_cct[key] = adj_cct
+            self.cct[key] = cct
     
-        return None
+            if plot:
+                self.utils.plot_nx(nx.to_numpy_array(self.cct.get(key)), 
+                                   labels = list(self.cct.get(key).nodes), 
+                                   figsize = (7,7), 
+                                   dpi = 50, 
+                                   node_size = 1500,
+                                   arrow_size = 20)
+    
+        return self.cct
 
 
     def get_cct_all_paths(self) -> list:
@@ -180,9 +197,92 @@ class CellBio(TaskGenerator):
 
         Input is commutative cut tree (CCT), not the original causal DAG.
         '''
+
+        self.path_dict = dict()
+        for key,subgraph in self.cct.items():
+            self.path_dict[key] = list(nx.all_simple_paths(subgraph, self.root, self.leaf))
+
+        return self.path_dict
+
+
+    def get_cutpoints(self, 
+                      dag: nx.classes.graph.Graph, 
+                      topological_sort: bool = True) -> list:
         
-        return None
+        '''
+        Getter for a topological sort of cutpoints.
+        '''
+
+        self.cutpoint_dict = dict()
+        for key,subgraph in self.subgraph_dict.items():
+            self.cutpoint_dict[key] = self._get_cutpoints(dag = subgraph, 
+                                                          topological_sort = topological_sort)
+
+        return self.cutpoint_dict
+
+
+    def get_cct_sort(self):
+
+        self.cct_sort = dict()
+        for key,nodes in self.cutpoint_dict.items():
+            self.cct_sort[key] = [self.root] + nodes + [self.leaf]
+
+        return self.cct_sort
+
+
+    def get_cause_effect_pairs(self,
+                               dag: nx.classes.graph.Graph) -> list:
+
+        '''
+        Getter for all relevant cause-effect pairs for inductive CCR evaluation
+        using Algorithm 1 / Theorem 1.
+        '''
+
+        combos = list(itertools.combinations(nx.topological_sort(dag),2))
         
+        # This step appears redundant, but I will keep this just in case 
+        # the apparent sorting by itertools is not consistent.
+        cause_effect_pairs = [x for x in combos if list(dag.nodes).index(x[0]) < list(dag.nodes).index(x[1])]
+        return cause_effect_pairs
+
+
+    def get_local(self) -> list:
+
+        '''
+        Getter for local quantity cause-effect pairs for inductive CCR evaluation
+        using Algorithm 1 / Theorem 1.
+
+        Returns a dictionary mapping subgraphs (each with their own CCT) to local quantities.
+        '''
+
+        self.local_dict = dict()
+        for key,cct in self.cct.items():
+            all_pairs = self.get_cause_effect_pairs(cct)
+            self.local_dict[key] = [x for x in all_pairs if x != (self.root, self.leaf)]
+
+        return self.local_dict
+        
+
+    def get_compositions(self) -> list:
+
+        '''
+        Getter for composition cause-effect pairs for inductive CCR evaluation
+        using Algorithm 1 / Theorem 1.
+        '''
+
+        self.get_cct_all_paths()
+        self.comp_dict = dict()
+        for key,subgraph in self.cct.items():
+            compositions = []
+            paths = self.path_dict.get(key)
+            for path in paths:
+                comp = [(path[i],path[i+1]) for i in range(len(path)-1)] 
+                if len(comp) >= 2:
+                    compositions.append(comp)
+            self.comp_dict[key] = compositions
+
+        return self.comp_dict
+
 
     def get_causal_context(self) -> str:
 
@@ -196,22 +296,23 @@ class CellBio(TaskGenerator):
         # Get variable metadata for context prompt.
         self.var_dict = dict()
         self.cell_type = ''.join(choices(string.ascii_uppercase+string.digits, k=6))
-        exog = ["enzyme"]*len(self.nodes)
-        endog = ["mRNA"]*len(self.nodes)
-        units = "pg" #(picograms)
+        self.organism = ''.join(choices(string.ascii_uppercase+string.digits, k=6))
+        self.compound = ''.join(choices(string.ascii_uppercase+string.digits, k=6))
+        #exog = ["enzyme"]*len(self.nodes)
+        #endog = ["mRNA"]*len(self.nodes)
+        #units = "pg" #(picograms)
         #units = "g/mL"
 
         for var,u in zip(self.nodes,self.exog_names):
             parents = self.get_parents(var, return_idx = False)
             self.var_dict[var] = {"parents": parents,
-                                  "endog type": endog, 
-                                  "endog level": level,
+                                  "endog type": "mRNA", 
                                   "exog var name": u, 
-                                  "exog type": exog}
+                                  "exog type": "enzyme"}
 
         '''
         A cellular biologist is studying the impacts of exposure to compound {} on  
-        transcription and translation in cell type {}. When stilumated with compound {}, 
+        transcription and translation in cell type {} of organism {}. When stilumated with compound {}, 
         cell type {} will produce mRNA transcripts for gene {} at {} times 
         the current volume of enzyme {}. The cell will produce mRNA transcripts for gene {} at {} times the 
         current volume of enzyme {} plus {} times the current volume of {} transcripts. The cell will produce 
@@ -233,46 +334,28 @@ class CellBio(TaskGenerator):
         '''
 
         # Construct prompt.
-        intro = "Chronic disease {} sometimes requires surgical intervention,".format(self.disease)
-        intro += " depending on genetics, patient history, vital signs, and lab results. The patient will experience" 
-        intro += " significant pain (rated greater than or equal to {}/10)".format(self.pain_threshold)
-        intro += " if they carry allele {},".format(self.var_dict.get("pain").get("exog var name"))
-        intro += " a genetic marker for severe {}.".format(self.disease)
-        outro = "Assume that all factors influencing the surgeon are fully described here."
+        intro = "A cellular biologist is studying the impacts of exposure to compound {}".format(self.compound)
+        intro += " on transcription and translation in cell type {} of organism {}.".format(self.cell_type,self.organism)
+        intro += " When stilumated with compound {}, cell type {}".format(self.compound,self.cell_type)
+        outro = "Assume that all factors influencing the transcription and translation of"
+        outro += " these molecules are fully described here."
         strngs = [intro]
         for var,terms in self.var_dict.items():
-            if var == "pain":
-                continue
             parents = terms.get("parents")
-            endog_type = terms.get("endog type")
-            magnitude = terms.get("endog magnitude")
-            level = terms.get("endog level")
             exog = "the patient "+terms.get("exog type")+" "+terms.get("exog var name")
-        
-            parent_strngs = []
-            for parent in parents:
-                if parent == "pain":
-                    parent = "the patient self-reports significant pain"
-                else:
-                    parent_terms = self.var_dict.get(parent)
-                    parent = "{} is {}".format(parent,parent_terms.get("endog magnitude"))
-                parent_strngs.append(parent)
-            parent_strngs.append(exog)
-            if var != self.leaf:
-                if var == self.root:
-                    strng = " and ".join(parent_strngs)
-                else:
-                    strng = " or ".join(parent_strngs)
-                strng = "If " + strng + ", then {} {} will be {} ({}).".format(endog_type,
-                                                                               var,
-                                                                               magnitude,
-                                                                               level)
+            if len(parents) > 0:
+                strng = " When stimulated with compound {}, cell type {}".format(self.compound,self.cell_type)
+                strng += " will produce mRNA transcripts for gene {}".format(var)
+                strng += " equal in volume to the current volume of enzyme {}.".format(terms.get("exog var name"))
             else:
-                strng = " and ".join(parent_strngs)
-                strng = "If " + strng + ", then the surgeon will recommend surgery.".format(endog_type,
-                                                                                            var,
-                                                                                            magnitude,
-                                                                                            level)
+                parent_strngs = []
+                strng = "The cell will produce mRNA transcripts for gene {}".format(var)
+                for parent in parents:
+                    parent_strngs.append(" at {} times the current volume of {} transcripts".format(self.direct_effects.get((parent,var)),
+                                                                                                    parent))
+                parent_strngs.append("the current volume of enzyme {}".format(terms.get("exog var name")))
+                parent_strngs = " plus ".join(parent_strngs)+"."
+            strng += parent_strngs
             strngs.append(strng)
         strngs.append(outro)
         
@@ -281,69 +364,28 @@ class CellBio(TaskGenerator):
 
 
     def get_sample_context(self,
-                           n_extra_vars: int = 2) -> str:
+                           n_extra_vars: int = 5) -> str:
 
         '''
         Sample exogenous variables and construct text prompt.
         '''
 
-        # Get patient sex and name according to sex.
-        self.sex = np.random.choice(["male", "female"], size = 1).item()
-        f = Faker()
-        if self.sex == "female":
-            self.name = f.name_female()
-        else:
-            self.name = f.name_male()
+        # Get extraneous details.
+        self.extra_names = [''.join(choices(string.ascii_uppercase+string.digits, k=4)) for _ in range(n_extra_vars)]
 
+        # Get observed quantities.
+        self.exog_obs = [np.random.uniform(low = 0.1, high = 3.0, size = 1).item() for _ in range(len(self.nodes))]
+        self.extra_obs = [np.random.uniform(low = 0.1, high = 3.0, size = 1).item() for _ in range(len(self.nodes))]
 
-        # Get observed exogenous variables based on user-selected Bernoulli parameters.
-        # These are the same parameters used to sample exogenous variables in self.sample_scm().
-        bern = lambda p: np.random.binomial(n = 1, p = p, size = 1).item()
-        self.exog_true_binary = [bern(p) for p,_ in zip(self.p,self.exog_names)]
-        self.exog_obs = [x for x,y in zip(self.exog_names,self.exog_true_binary) if y == 1]
-        
-        # Get observed alleles.
-        self.alleles_obs = [x for x in self.exog_obs if x in self.alleles]
-        self.alleles_extra = ["".join(choices(string.ascii_uppercase+string.digits, k=4)) for _ in range(n_extra_vars)]
-        alleles_obs_str = ", ".join(self.alleles_obs+self.alleles_extra)
-        
-        # Get observed family medical history.
-        self.fam_hist_obs = [x for x in self.exog_obs if x in self.fam_hist]
-        self.fam_hist_extra = ["".join(choices(string.ascii_uppercase+string.digits, k=4)) for _ in range(n_extra_vars)]
-        fam_hist_obs_str = ", ".join(self.fam_hist_obs+self.fam_hist_extra)
-        
-        # Get observed surgical history.
-        self.prev_surg_obs = [x for x in self.exog_obs if x in self.prev_surg]
-        self.prev_surg_extra = ["".join(choices(string.ascii_uppercase+string.digits, k=4)) for _ in range(n_extra_vars)]
-        prev_surg_obs_str = ", ".join(self.prev_surg_obs+self.prev_surg_extra)
-        
-        # Get observed medications (not used in causal graph).
-        n_meds = np.random.randint(low = 1, high = 3, size = 1).item()
-        medications = ["".join(choices(string.ascii_uppercase+string.digits, k=3)) for _ in range(n_meds)]
-        amounts = [str(np.random.choice([10,25,50,75,100,150],size=1).item()) for _ in range(n_meds)]
-        self.medications = [x+" "+y+" mg/day" for x,y in zip(medications,amounts)]
-        medications = ", ".join(self.medications)
+        # Construct context.
+        self.sample_context = "At the time of the experiment, the biologist measures"
+        volumes = [str(pg)+" pg of enzyme "+u for pg,u in zip(self.exog_obs,self.exog_names)]
+        volumes += [str(pg)+" pg of enzyme "+u for pg,u in zip(self.extra_obs,self.extra_names)]
+        shuffle(volumes)
+        self.sample_context += ", ".join(volumes[:-1])
+        self.sample_context += " and "+volumes[-1]+"."
 
-        # Get age and pain details.
-        self.age = np.random.randint(low = 53, high = 70, size = 1).item()
-        self.hours = np.random.randint(low = 2, high = 6, size = 1).item()
-        if self.exog_true_binary[0] == 1: # True pain must be at least threshold.
-            self.rating = np.random.randint(low = self.pain_threshold, high = 11, size = 1).item()
-        else: # True pain must be below threshold.
-            self.rating = np.random.randint(low = 3, high = self.pain_threshold, size = 1).item()
-        self.mg = np.random.choice([75,100,250,500], size = 1).item()
-
-        self.history = "Now, we will review the history and physical notes for patient {}.".format(self.name) 
-        self.history += " History of Present Illness: {} is a {}-year-old".format(self.name, self.age)
-        self.history += " {} with {} who presented to the emergency department with acute".format(self.sex, self.disease)
-        self.history += " onset pain that began {} hours prior to arrival.".format(self.hours)
-        self.history += " Pain was rated {}/10. The patient reports the pain has been persistent since onset.".format(self.rating)
-        self.history += " The patient took aspirin ({} mg) at home with minimal relief.".format(self.mg)
-        self.history += " Genetic Screening: Patient carries alleles {}.".format(alleles_obs_str)
-        self.history += " Family History: {}. Medications: {}.".format(fam_hist_obs_str,medications)
-        self.history += " Past Surgical History: Prior surgeries for {}.".format(prev_surg_obs_str)
-        
-        return self.history
+        return self.sample_context
 
 
     def get_factual_queries(self) -> dict:

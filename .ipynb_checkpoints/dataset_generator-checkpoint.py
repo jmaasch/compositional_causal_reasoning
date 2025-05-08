@@ -26,6 +26,7 @@ class DataSetGenerator():
     def get_dataset(self, 
                     task_generator, # ClinicalNotes, CandyParty, etc.
                     graph_sizes: list = [[2,2,2],[3,3,3],[4,4,4]],
+                    bcc_type: str = "cycle",
                     n_tasks_per_size: int = 10,
                     n_samples_per_task: int = 1000,
                     reps_per_sample: int = None,
@@ -39,7 +40,7 @@ class DataSetGenerator():
 
                 # Init task generator.
                 tg = task_generator(n_per_bcc = size, 
-                                    bcc_types = ["cycle"]*len(size),
+                                    bcc_types = [bcc_type]*len(size),
                                     plot = False)
 
                 # Get metadata.

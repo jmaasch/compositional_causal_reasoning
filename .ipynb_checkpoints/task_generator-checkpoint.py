@@ -24,6 +24,7 @@ class TaskGenerator:
     def __init__(self,
                  n_per_bcc: list = [3,3,3], 
                  bcc_types: list = ["cycle", "wheel", "cycle"],
+                 causal_functions: str = "random", # "or", "and"
                  bern: str = "uniform", # "random"
                  p: int = 0.5,
                  plot: bool = True):
@@ -38,11 +39,11 @@ class TaskGenerator:
         self.adj_dag = self.get_adjacency_matrix(self.dag)
         self.nodes = list(self.dag.nodes())
         self.exog_names = [''.join(choices(string.ascii_uppercase+string.digits, k=4)) for _ in self.nodes]
-        self.causal_functions = self.get_causal_functions()
+        self.causal_functions = self.get_causal_functions(causal_functions)
         self.root = self.get_root(self.dag)
         self.leaf = self.get_leaf(self.dag)
         self.cutpoints = self.get_cutpoints(self.dag)
-        self.cct_sort = [self.root] + self.cutpoints + [self.leaf]
+        self.cct_sort = self.get_cct_sort()
         self.cct = self.get_cct(plot = False)
 
         # Enumerate quantities of interest.
@@ -57,9 +58,19 @@ class TaskGenerator:
             self.p = [p]*len(self.nodes)
 
 
-    def get_causal_functions(self) -> list:
-        
-        return ["or"]*(len(self.nodes))
+    def get_causal_functions(self, 
+                             causal_functions: str = "random") -> list:
+
+        if causal_functions == "or":
+            return ["or"]*(len(self.nodes))
+        elif causal_functions == "and":
+            return ["and"]*(len(self.nodes))
+        elif causal_functions == "random":
+            funs = ["and"]*int(len(self.nodes)/2) + ["or"]*(len(self.nodes)-int(len(self.nodes)/2))
+            shuffle(funs)
+            return funs
+        else:
+            raise Exception("param causal_functions must be 'and', 'or', or 'random'.")
 
 
     def get_dag(self,
@@ -69,7 +80,7 @@ class TaskGenerator:
                 plot: bool = True) -> nx.classes.graph.Graph:
     
         '''
-        Construct a directed acyclic graph (DAG) with exactly one root, exaclty one leaf, 
+        Construct a directed acyclic graph (DAG) with exactly one root, exactly one leaf, 
         varying numbers of biconnected components (BCCs), and varying numbers of nodes in 
         each BCC.
 
@@ -98,20 +109,34 @@ class TaskGenerator:
         Generates the commutative cut tree associated with the input causal DAG.
         '''
 
+        return self._get_cct(plot = plot)
+
+
+    def _get_cct(self,
+                 plot: bool = True) -> nx.classes.graph.Graph:
+
+        '''
+        Private getter.
+        '''
+
         self.adj_cct = np.triu(np.ones((len(self.cct_sort),len(self.cct_sort))), k = 1)
         self.adj_cct = self.adj_cct.astype(int)
         cct = nx.from_numpy_array(self.adj_cct, create_using = nx.DiGraph)
         cct = nx.relabel_nodes(cct, dict(zip(cct.nodes,self.cct_sort)))
 
         if plot:
-            self.self.utils.plot_nx(self.adj_cct, 
-                                    labels = self.cct_sort, 
-                                    figsize = (7,7), 
-                                    dpi = 50, 
-                                    node_size = 1500,
-                                    arrow_size = 20)
+            self.utils.plot_nx(self.adj_cct, 
+                               labels = self.cct_sort, 
+                               figsize = (7,7), 
+                               dpi = 50, 
+                               node_size = 1500,
+                               arrow_size = 20)
         return cct
 
+
+    def get_cct_sort(self):
+
+        return [self.root] + self.cutpoints + [self.leaf]
 
     def get_cct_all_paths(self) -> list:
 
@@ -120,6 +145,15 @@ class TaskGenerator:
         using Algorithm 1 / Theorem 1.
 
         Input is commutative cut tree (CCT), not the original causal DAG.
+        '''
+        
+        return self._get_cct_all_paths()
+
+
+    def _get_cct_all_paths(self) -> list:
+
+        '''
+        Private getter.
         '''
         
         return nx.all_simple_paths(self.cct, self.root, self.leaf)
@@ -131,6 +165,17 @@ class TaskGenerator:
         
         '''
         Getter for a topological sort of cutpoints.
+        '''
+
+        return self._get_cutpoints(dag = dag, topological_sort = topological_sort)
+
+
+    def _get_cutpoints(self, 
+                       dag: nx.classes.graph.Graph, 
+                       topological_sort: bool = True) -> list:
+        
+        '''
+        Private getter.
         '''
 
         #nx.is_biconnected(dag.to_undirected())
@@ -148,8 +193,9 @@ class TaskGenerator:
         Returns node name.
         '''
 
-        #leaf = [v for v, d in cct.out_degree() if d == 0][0]
         return list(dag.nodes())[-1]
+        #return [v for v, d in self.dag.out_degree() if d == 0][0]
+        #return list(nx.topological_sort(dag))[-1]
 
     
     def get_root(self,
@@ -161,8 +207,9 @@ class TaskGenerator:
         Returns node name.
         '''
 
-        #root = [v for v, d in cct.in_degree() if d == 0][0]
         return list(dag.nodes())[0]
+        #return [v for v, d in self.dag.in_degree() if d == 0][0]
+        #return list(nx.topological_sort(dag))[0]
 
 
     def get_parents(self, 
@@ -204,7 +251,7 @@ class TaskGenerator:
         
         # This step appears redundant, but I will keep this just in case 
         # the apparent sorting by itertools is not consistent.
-        cause_effect_pairs = [x for x in combos if self.cct_sort.index(x[0]) < self.cct_sort.index(x[1])]
+        cause_effect_pairs = [x for x in combos if list(dag.nodes).index(x[0]) < list(dag.nodes).index(x[1])]
         return cause_effect_pairs
 
 
@@ -225,15 +272,33 @@ class TaskGenerator:
         using Algorithm 1 / Theorem 1.
         '''
 
+        return self._get_local()
+
+
+    def _get_local(self) -> list:
+
+        '''
+        Private getter.
+        '''
+
         all_pairs = self.get_cause_effect_pairs(self.dag)
         return [x for x in all_pairs if x != (self.root, self.leaf)]
 
 
-    def get_compositions(self) -> list:
+    def get_compositions(self):
 
         '''
         Getter for composition cause-effect pairs for inductive CCR evaluation
         using Algorithm 1 / Theorem 1.
+        '''
+
+        return self._get_compositions()
+
+
+    def _get_compositions(self) -> list:
+
+        '''
+        Private getter.
         '''
 
         paths = self.get_cct_all_paths()
@@ -337,9 +402,7 @@ class TaskGenerator:
                 self.endog_true_binary[i] = intervene_value
             else:
                 for parent in parents_idx:
-                    #print("var,fun,par:",self.endog_true_binary[i],self.causal_functions[i],self.endog_true_binary[parent])
                     self.endog_true_binary[i] = fun((self.endog_true_binary[i],self.endog_true_binary[parent]))
-                    #print("=", self.endog_true_binary[i])
                         
         return self.endog_true_binary
 
