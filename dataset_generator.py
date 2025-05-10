@@ -27,6 +27,7 @@ class DataSetGenerator():
                     task_generator, # ClinicalNotes, CandyParty, etc.
                     graph_sizes: list = [[2,2,2],[3,3,3],[4,4,4]],
                     bcc_type: str = "cycle",
+                    causal_functions: str = "random", # "or", "and"
                     n_tasks_per_size: int = 10,
                     n_samples_per_task: int = 1000,
                     reps_per_sample: int = None,
@@ -41,6 +42,7 @@ class DataSetGenerator():
                 # Init task generator.
                 tg = task_generator(n_per_bcc = size, 
                                     bcc_types = [bcc_type]*len(size),
+                                    causal_functions = causal_functions,
                                     plot = False)
 
                 # Get metadata.
@@ -87,11 +89,9 @@ class DataSetGenerator():
                     "Causal context": context, 
                     "Sample context": sample_contexts, 
                     "Factual queries": factual_queries, 
-                    "Counterfactual queries (cause = True)": cf_1_queries, 
-                    "Counterfactual queries (cause = False)": cf_0_queries
+                    "Interventional queries (cause = True)": cf_1_queries, 
+                    "Interventional queries (cause = False)": cf_0_queries
                 })
-                df.insert(0, "Task ID",
-                          ['.'.join(i) for i in zip(df["Context ID"].astype(str),df["Sample ID"].astype(str))])
                 dfs.append(df)
         
         self.df = pd.concat(dfs).reset_index(drop = True)
@@ -102,88 +102,14 @@ class DataSetGenerator():
             self.df = pd.DataFrame(np.repeat(self.df.values, repeats = reps_per_sample, axis = 0), 
                                    columns = self.df.columns)
             self.df.insert(3, "Replicate ID", rep_ids)
-
-        return self.df
-
-
-    def get_dataset_continuous(self, 
-                               task_generator, # ClinicalNotes, CandyParty, etc.
-                               graph_sizes: list = [[2,2,2],[3,3,3],[4,4,4]],
-                               n_tasks_per_size: int = 10,
-                               n_samples_per_task: int = 1000,
-                               reps_per_sample: int = None,
-                               n_extra_vars: int = None) -> pd.DataFrame:
-        
-        dfs = []
-        for size in graph_sizes:
-            
-            start = graph_sizes.index(size)*n_tasks_per_size
-            for task in range(start,start+n_tasks_per_size):
-
-                # Init task generator.
-                tg = task_generator(n_per_bcc = size, 
-                                    bcc_types = ["cycle"]*len(size),
-                                    plot = False)
-
-                # Get metadata.
-                context = [tg.get_causal_context()]*n_samples_per_task
-                adj_dag = [tg.adj_dag]*n_samples_per_task
-                nodes_dag = [tg.nodes]*n_samples_per_task
-                adj_cct = [tg.adj_cct]*n_samples_per_task
-                nodes_cct = [list(tg.cct.nodes())]*n_samples_per_task
-                exog_names = [tg.exog_names]*n_samples_per_task
-                params = tg.params
-                
-                global_qs = [tg.get_global()]*n_samples_per_task
-                local_qs = [tg.get_local()]*n_samples_per_task
-                compositions = [tg.get_compositions()]*n_samples_per_task
-                
-                sample_contexts = []
-                factual_queries = []
-                cf_1_queries = []
-                cf_0_queries = []
-                
-                for i in range(n_samples_per_task):
-                    if n_extra_vars is not None:
-                        sample_contexts.append(tg.get_sample_context(n_extra_vars = n_extra_vars))
-                    else:
-                        sample_contexts.append(tg.get_sample_context())
-                    factual_queries.append(tg.get_factual_queries())
-                    cf_1, cf_0 = tg.get_counterfactual_queries()
-                    cf_1_queries.append(cf_1)
-                    cf_0_queries.append(cf_0)
-                
-                df = pd.DataFrame({
-                    "Context ID": task, 
-                    "Sample ID": range(n_samples_per_task),
-                    "Nodes per BCC": [size]*n_samples_per_task,
-                    "DAG adjacency matrix": adj_dag, 
-                    "DAG nodes": nodes_dag,
-                    "CCT adjacency matrix": adj_cct, 
-                    "CCT nodes": nodes_cct,
-                    "Exogenous variables": exog_names,
-                    "Bernoulli parameters": p,
-                    "Global quantity": global_qs,
-                    "Local quantities": local_qs,
-                    "Compositions": compositions,
-                    "Causal context": context, 
-                    "Sample context": sample_contexts, 
-                    "Factual queries": factual_queries, 
-                    "Counterfactual queries (cause = True)": cf_1_queries, 
-                    "Counterfactual queries (cause = False)": cf_0_queries
-                })
-                df.insert(0, "Task ID",
-                          ['.'.join(i) for i in zip(df["Context ID"].astype(str),df["Sample ID"].astype(str))])
-                dfs.append(df)
-        
-        self.df = pd.concat(dfs).reset_index(drop = True)
-
-        # Replicate samples if desired.
-        if reps_per_sample is not None:
-            rep_ids = list(np.arange(reps_per_sample))*len(self.df)
-            self.df = pd.DataFrame(np.repeat(self.df.values, repeats = reps_per_sample, axis = 0), 
-                                   columns = self.df.columns)
-            self.df.insert(3, "Replicate ID", rep_ids)
+            self.df.insert(0, "Task ID",
+                          ['.'.join(i) for i in zip(self.df["Context ID"].astype(str),
+                                                    self.df["Sample ID"].astype(str),
+                                                    self.df["Replicate ID"].astype(str))])
+        else:
+            self.df.insert(0, "Task ID",
+                          ['.'.join(i) for i in zip(self.df["Context ID"].astype(str),
+                                                    self.df["Sample ID"].astype(str))])
 
         return self.df
 
@@ -206,25 +132,28 @@ class DataSetGenerator():
                 rep_id = self.df.loc[row, "Replicate ID"]
             n_bcc = self.df.loc[row, "Nodes per BCC"]
             fact = self.df.loc[row, "Factual queries"]
-            cf_1 = self.df.loc[row, "Counterfactual queries (cause = True)"]
-            cf_0 = self.df.loc[row, "Counterfactual queries (cause = False)"]
+            cf_1 = self.df.loc[row, "Interventional queries (cause = True)"]
+            cf_0 = self.df.loc[row, "Interventional queries (cause = False)"]
             causal_context = self.df.loc[row, "Causal context"]
             sample_context = self.df.loc[row, "Sample context"]
         
             # Get factual prompt data.
             factual_effects = []
-            factual_prompts = []
+            factual_contexts = []
+            factual_queries = []
             factual_true = []
             for effect,q_dict in fact.items():
                 factual_effects.append(effect)
-                factual_prompts.append(" ".join([causal_context,sample_context,q_dict.get("Prompt")]))
+                factual_contexts.append(" ".join([causal_context.strip(),sample_context.strip()]))
+                factual_queries.append(q_dict.get("Prompt"))
                 factual_true.append(q_dict.get("True response"))
             df_fact = pd.DataFrame({"Task ID": task_id,
                                     "Context ID": context_id,
                                     "Sample ID": sample_id,
                                     "Nodes per BCC": [n_bcc]*len(factual_effects),
                                     "Effect": factual_effects,
-                                    "Prompt": factual_prompts,
+                                    "Context": factual_contexts,
+                                    "Question": factual_queries,
                                     "True": factual_true})
             if "Replicate ID" in self.df.columns:
                 df_fact.insert(3, "Replicate ID", rep_id)
@@ -234,15 +163,17 @@ class DataSetGenerator():
             pairs = []
             causes = []
             effects = []
-            cf_1_prompts = []
+            cf_contexts = []
+            cf_1_queries = []
             cf_1_true = []
-            cf_0_prompts = []
+            cf_0_queries = []
             cf_0_true = []
             for pair,q_dict in cf_1.items():
                 pairs.append(pair)
                 causes.append(pair[0])
                 effects.append(pair[1])
-                cf_1_prompts.append(" ".join([causal_context,sample_context,q_dict.get("Prompt")]))
+                cf_contexts.append(" ".join([causal_context.strip(),sample_context.strip()]))
+                cf_1_queries.append(q_dict.get("Prompt"))
                 cf_1_true.append(q_dict.get("True response"))
             df_cf = pd.DataFrame({"Task ID": task_id,
                                   "Context ID": context_id,
@@ -251,12 +182,13 @@ class DataSetGenerator():
                                   "Cause-effect pair": pairs,
                                   "Cause": causes,
                                   "Effect": effects,
-                                  "Prompt (cause = True)": cf_1_prompts,
+                                  "Context": cf_contexts,
+                                  "Question (cause = True)": cf_1_queries,
                                   "True (cause = True)": cf_1_true})
             for pair,q_dict in cf_0.items():
-                cf_0_prompts.append(" ".join([causal_context,sample_context,q_dict.get("Prompt")]))
+                cf_0_queries.append(q_dict.get("Prompt"))
                 cf_0_true.append(q_dict.get("True response"))
-            df_cf["Prompt (cause = False)"] = cf_0_prompts
+            df_cf["Question (cause = False)"] = cf_0_queries
             df_cf["True (cause = False)"] = cf_0_true
             if "Replicate ID" in self.df.columns:
                 df_cf.insert(3, "Replicate ID", rep_id)
@@ -322,7 +254,7 @@ class DataSetGenerator():
 
 
     def get_internal_consistency_thresholds(self, 
-                                            multiplier: float = 2.0) -> dict:
+                                            multiplier: float = 1.0) -> dict:
         
         '''
         Return a dictionary that maps compositions to their correctness threshold
@@ -351,6 +283,7 @@ class DataSetGenerator():
             self.threshold_dict[context] = context_dict
         
         return self.threshold_dict
+
 
 
 

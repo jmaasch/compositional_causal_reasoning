@@ -20,15 +20,7 @@ class FlowerGarden(TaskGenerator):
     '''
     Generates compositional causal reasoning tasks.
     '''
-
-    def set_thresholds(self):
-
-        '''
-        Set quantitative thresholds for happiness.
-        '''
-        
-        self.thresh = [int(x*10) for x in self.p]
-
+    
 
     def init_colors(self):
 

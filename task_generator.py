@@ -24,9 +24,7 @@ class TaskGenerator:
     def __init__(self,
                  n_per_bcc: list = [3,3,3], 
                  bcc_types: list = ["cycle", "wheel", "cycle"],
-                 causal_functions: str = "random", # "or", "and"
-                 bern: str = "uniform", # "random"
-                 p: int = 0.5,
+                 causal_functions: str = "random", # "or", "and", "random"
                  plot: bool = True):
 
         # For utility functions.
@@ -52,14 +50,21 @@ class TaskGenerator:
         self.compositions = self.get_compositions()
 
         # Parameters to exogenous noise distributions.
-        if bern == "random":
-            self.p = np.random.uniform(low = 0.4, high = 0.8, size = len(self.nodes))
-        else:
-            self.p = [p]*len(self.nodes)
+        self.p = np.random.uniform(low = 0.4, high = 0.8, size = len(self.nodes))
+        self.p = [round(x,1) for x in self.p]
+
+
+    def set_thresholds(self):
+
+        '''
+        Set thresholds for happiness.
+        '''
+
+        self.thresh = [int(x*10) for x in self.p]
 
 
     def get_causal_functions(self, 
-                             causal_functions: str = "random") -> list:
+                             causal_functions: str = None) -> list:
 
         if causal_functions == "or":
             return ["or"]*(len(self.nodes))

@@ -21,15 +21,6 @@ class FluVaccine(TaskGenerator):
     Generates compositional causal reasoning tasks.
     '''
 
-    def set_thresholds(self):
-
-        '''
-        Set thresholds for happiness.
-        '''
-        
-        self.thresh = [int(x*10) for x in self.p]
-
-        
     def get_dag(self,
                 n_per_bcc: list = [3,3,3], 
                 bcc_types: list = ["cycle", "wheel", "cycle"],

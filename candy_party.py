@@ -21,14 +21,6 @@ class CandyParty(TaskGenerator):
     Generates compositional causal reasoning tasks.
     '''
 
-    def set_thresholds(self):
-
-        '''
-        Set thresholds for happiness.
-        '''
-        
-        self.thresh = [int(x*10) for x in self.p]
-
         
     def get_dag(self,
                 n_per_bcc: list = [3,3,3], 
@@ -134,17 +126,20 @@ class CandyParty(TaskGenerator):
                         " candies"]                             # clauses[5]
 
         strings = [intro]
-        for node,number in zip(self.nodes,self.thresh):
+        for i in range(len(self.nodes)):
             #parents = list(dag.predecessors(node)) # Auto-generated adjdagacency matrix is not upper triangular.
             #parents = dag.pred[node]
-            parents_idx = np.nonzero(self.adj_dag[:,self.nodes.index(node)])[0]
-            parents = [self.nodes[i] for i in parents_idx]
+            parents_idx = np.nonzero(self.adj_dag[:,i])[0]
+            parents = [self.nodes[j] for j in parents_idx]
             if len(parents) == 0:
-                string = node + self.clauses[0] + str(number) + self.clauses[1] + ". "
+                string = self.nodes[i] + self.clauses[0] + str(self.thresh[i]) + self.clauses[1] + ". "
             else:
-                string = node + self.clauses[0] + str(number) + self.clauses[1]
+                string = self.nodes[i] + self.clauses[0] + str(self.thresh[i]) + self.clauses[1]
                 for parent in parents:
-                    string += " or if " + parent + self.clauses[2]
+                    if self.causal_functions[i] == "or":
+                        string += " or if " + parent + self.clauses[2]
+                    else: 
+                        string += " and " + parent + self.clauses[2]
                 string += ". "
             strings.append(string)
         self.causal_context = "".join(strings)

@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
+from ast import literal_eval
 
 
 class Utils():
@@ -103,6 +104,20 @@ class Utils():
                 pred: np.array) -> float:
 
         return abs(true - pred) / true
+
+
+    def string_to_array(self,
+                        array_string: str) -> np.array:
+
+        '''
+        Convert adjacency matrices back to numpy arrays when imported 
+        dataframes automatically cast cell contents as strings.
+        '''
+        
+        cleaned_string = array_string.replace('\n', '')
+        cleaned_string = cleaned_string.replace(' ', ', ')
+        new_list = literal_eval(cleaned_string)
+        return np.array(new_list)
 
 
 

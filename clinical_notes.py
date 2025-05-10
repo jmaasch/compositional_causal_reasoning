@@ -23,7 +23,8 @@ class ClinicalNotes(TaskGenerator):
     '''
 
 
-    def get_causal_functions(self):
+    def get_causal_functions(self, 
+                             causal_functions: str = None) -> list:
 
         return ["or"]*(len(self.nodes)-1)+["and"]
 
