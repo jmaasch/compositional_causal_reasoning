@@ -3,7 +3,7 @@
 Causal reasoning and compositional reasoning are two core aspirations in AI. Measuring these behaviors requires principled evaluation methods. Our work considers both behaviors simultaneously, under the umbrella of **compositional causal reasoning (CCR)**: the ability to infer how causal measures compose and, equivalently, how causal quantities propagate through graphs. The CCR.GB benchmark is designed to measure CCR at **all three levels of Pearl's Causal Hierarchy**: (1) associational, (2) interventional, and (3) counterfactual.
 
 <p align="center">
-    <img src="https://jmaasch.github.io/ccr_benchmark/static/images/pch.png" width="500">
+    <img src="https://jmaasch.github.io/ccr/static/images/pch.png" width="500">
 </p>
 
 
@@ -12,7 +12,23 @@ CCR.GB provides two artifacts:
 1. **Random CCR task generator.** Open source code for on-demand task generation according to user specifications (graphical complexity, task theme, etc.).
 2. **Pre-sampled benchmark dataset.** A static dataset sampled from the random task generator, as a starting point for community benchmarking. Static datasets can be found on [Hugging Face](https://huggingface.co/datasets/jmaasch/compositional_causal_reasoning).
 
-For additional documentation, see our [main project page](https://jmaasch.github.io/ccr_benchmark/).
+For additional documentation, see our [main project page](https://jmaasch.github.io/ccr/).
+
+## Citation
+
+If you use our data or code, please cite our [ICML paper](https://arxiv.org/abs/2503.04556):
+
+```
+@inproceedings{maasch2025ccr,
+        title={Compositional Causal Reasoning Evaluation in Language Models},
+        author={Jacqueline Maasch and Alihan Hüyük and Xinnuo Xu and Aditya V. Nori and Javier Gonzalez},
+        booktitle={Proceedings of the 42nd International Conference on Machine Learning (ICML)},
+        url={https://arxiv.org/abs/2503.04556},
+        year={2025}
+      }
+```
+
+Note that this codebase is still in development: **if you encounter any errors or problems with our code or data, please submit an issue.**
 
 ## Dataset Creation
 
@@ -29,17 +45,17 @@ The static dataset provided in this repository was sampled using our random task
   many times, where each copy is paired with a new sample context.
 4. **Factual query prompts.** Next, we construct factual queries by treating the causal context + sample context as observational data. 
   All queries are phrased as yes/no questions. The factual query is then concatenated to a copy of the causal context + sample context. Responses to factual prompts
-  can be used to compute \\(p(y \mid x)\\) for binary cause \\(x\\) and binary effect \\(y\\). Thus, evaluation on factual queries alone tests reasoning at the <b>associational level</b> 
+  can be used to compute $$p(y \mid x)$$ for binary cause $$x$$ and binary effect $$y$$. Thus, evaluation on factual queries alone tests reasoning at the <b>associational level</b> 
   of Pearl's Causal Hierarchy. Note that evaluation at the associational level is less powerful at distinguishing recall from reasoning than the higher levels 
   of the Causal Hierarchy. 
-5. **Interventional query pairs.** Finally, we construct paired interventional queries corresponding to interventions \\(do(X = True)\\) and \\(do(X = False)\\). 
+5. **Interventional query pairs.** Finally, we construct paired interventional queries corresponding to interventions $$do(X = True)$$ and $$do(X = False)$$. 
   Each interventional query is individually concatenated to a copy of the causal context + sample context. 
-  As with factual queries, all interventional queries are phrased as yes/no questions. Responses to interventional prompts are used to compute \\(p(y \mid do(X = True))\\) 
-  and \\(p(y \mid do(X = False))\\). As matched pairs over the same sample context, these are also used to compute the PNS: \\(p(y \mid do(X = True)) - p(y \mid do(X = False))\\). Thus, evaluation on interventional prompts tests for reasoning at both the <b>interventional and counterfactual rungs</b> of Pearl's Causal Hierarchy.
+  As with factual queries, all interventional queries are phrased as yes/no questions. Responses to interventional prompts are used to compute $$p(y \mid do(X = True))$$ 
+  and $$p(y \mid do(X = False))$$. As matched pairs over the same sample context, these are also used to compute the PNS: $$p(y \mid do(X = True)) - p(y \mid do(X = False))$$. Thus, evaluation on interventional prompts tests for reasoning at both the <b>interventional and counterfactual rungs</b> of Pearl's Causal Hierarchy.
 
 
 <p align="center">
-    <img src="https://jmaasch.github.io/ccr_benchmark/static/images/prompt.png" width="800">
+    <img src="https://jmaasch.github.io/ccr/static/images/prompt.png" width="800">
 </p>
 
 
