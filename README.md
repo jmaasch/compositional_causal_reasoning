@@ -74,15 +74,19 @@ The static dataset provided in this repository was sampled using our random task
 # Walk-through for using CCR.GB for reasoning evaluation.
 ├── demos
 │   └── demo_clinical_notes.ipynb
+│   └── demo_flu_vaccine.ipynb
 
 # Error testing.
-├── error_test_candy_party.ipynb
-├── error_test_clinical_notes.ipynb
-├── error_test_flower_garden.ipynb
-├── error_test_flu_vaccine.ipynb
+├── error_testing
+│   ├── error_test_candy_party.ipynb
+│   ├── error_test_cell_bio.ipynb
+│   ├── error_test_clinical_notes.ipynb
+│   ├── error_test_flower_garden.ipynb
+│   └── error_test_flu_vaccine.ipynb
 
 # Code used to generate the static datasets on Hugging Face.
 ├── generate_clinical_notes.ipynb
+├── generate_flu_vaccine.ipynb
 
 # Requirements for reproducibility.
 └── requirements.txt
