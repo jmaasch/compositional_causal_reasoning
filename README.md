@@ -1,27 +1,8 @@
 # CCR.GB: A Generative Benchmark for Compositional Causal Reasoning Evaluation
 
-Causal reasoning and compositional reasoning are two core aspirations in AI. Measuring these behaviors requires principled evaluation methods. Our work considers both behaviors simultaneously, under the umbrella of **compositional causal reasoning (CCR)**: the ability to infer how causal measures compose and, equivalently, how causal quantities propagate through graphs. The CCR.GB benchmark is designed to measure CCR at **all three levels of Pearl's Causal Hierarchy**: (1) associational, (2) interventional, and (3) counterfactual.
+This repository contains the code base for our paper *Compositional Causal Reasoning Evaluation in Language Models* ([ICML 2025](https://arxiv.org/abs/2503.04556)).
 
-<p align="center">
-    <img src="https://jmaasch.github.io/ccr/static/images/pch.png" width="500">
-</p>
-
-
-CCR.GB provides two artifacts:
-
-1. **Random CCR task generator.** Open source code for on-demand task generation according to user specifications (graphical complexity, task theme, etc.).
-2. **Pre-sampled benchmark dataset.** A static dataset sampled from the random task generator, as a starting point for community benchmarking. Static datasets can be found on [Hugging Face](https://huggingface.co/datasets/jmaasch/compositional_causal_reasoning).
-
-For additional documentation, see our [main project page](https://jmaasch.github.io/ccr/).
-
-### README Contents
-1. [Citation](#Citation)
-2. [Repository structure](#Repository-structure)
-3. [Dataset Creation](#Dataset-Creation)
-
-## Citation
-
-If you use our data or code, please cite our [ICML paper](https://arxiv.org/abs/2503.04556):
+If you use our data or code, please cite the following:
 
 ```
 @inproceedings{maasch2025ccr,
@@ -34,6 +15,28 @@ If you use our data or code, please cite our [ICML paper](https://arxiv.org/abs/
 ```
 
 Note that this codebase is still in development: **if you encounter any errors or problems with our code or data, please submit an issue.**
+
+#### README Contents
+1. [Overview](#Overview)
+2. [Repository structure](#Repository-structure)
+3. [Dataset creation](#Dataset-Creation)
+
+## Overview
+
+Causal reasoning and compositional reasoning are two core aspirations in AI. Measuring these behaviors requires principled evaluation methods. Our work considers both behaviors simultaneously, under the umbrella of **compositional causal reasoning (CCR)**: the ability to infer how causal measures compose and, equivalently, how causal quantities propagate through graphs. The CCR.GB benchmark is designed to measure CCR at **all three levels of Pearl's Causal Hierarchy**: (1) associational, (2) interventional, and (3) counterfactual.
+
+<p align="center">
+    <img src="https://jmaasch.github.io/ccr/static/images/pch.png" width="500">
+</p>
+
+#### Artifacts
+
+CCR.GB provides two artifacts:
+
+1. **Random CCR task generator.** Open source code for on-demand task generation according to user specifications (graphical complexity, task theme, etc.).
+2. **Pre-sampled benchmark dataset.** A static dataset sampled from the random task generator, as a starting point for community benchmarking. Static datasets can be found on [Hugging Face](https://huggingface.co/datasets/jmaasch/compositional_causal_reasoning).
+
+For additional documentation, see our [main project page](https://jmaasch.github.io/ccr/).
 
 ## Repository structure
 
