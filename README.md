@@ -1,6 +1,6 @@
 # CCR.GB: A Generative Benchmark for Compositional Causal Reasoning Evaluation
 
-This repository contains the code base for our paper *Compositional Causal Reasoning Evaluation in Language Models* ([ICML 2025](https://arxiv.org/abs/2503.04556)). For a more thorough overview, see our [main project page](https://jmaasch.github.io/ccr/).
+This repository contains the code base for our paper *Compositional Causal Reasoning Evaluation in Language Models* ([ICML 2025](https://arxiv.org/abs/2503.04556)). For a more comprehensive overview, see our [main project page](https://jmaasch.github.io/ccr/).
 
 If you use our data or code, please cite the following:
 
